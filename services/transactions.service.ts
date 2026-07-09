@@ -13,6 +13,7 @@ import {
   where,
   orderBy,
   onSnapshot,
+  getDocs,
   Timestamp,
   type Unsubscribe,
 } from 'firebase/firestore'
@@ -67,6 +68,41 @@ export const subscribeToTransactions = (
     },
     onError
   )
+}
+
+/**
+ * Obtiene todos los movimientos del usuario (one-shot, sin listener).
+ * Útil para pull-to-refresh.
+ */
+export const fetchTransactions = async (
+  userId: string
+): Promise<Transaction[]> => {
+  const q = query(
+    collection(db, COLLECTION),
+    where('userId', '==', userId),
+    orderBy('createdAt', 'desc')
+  )
+  const snapshot = await getDocs(q)
+  return snapshot.docs.map((docSnap) => {
+    const data = docSnap.data()
+    return {
+      id: docSnap.id,
+      amount:      data['amount'] as number,
+      description: data['description'] as string,
+      category:    data['category'] as string,
+      type:        data['type'] as Transaction['type'],
+      userId:      data['userId'] as string,
+      date:      data['date'] instanceof Timestamp
+        ? data['date'].toDate().toISOString().split('T')[0]
+        : (data['date'] as string),
+      createdAt: data['createdAt'] instanceof Timestamp
+        ? data['createdAt'].toDate().toISOString()
+        : (data['createdAt'] as string),
+      updatedAt: data['updatedAt'] instanceof Timestamp
+        ? data['updatedAt'].toDate().toISOString()
+        : (data['updatedAt'] as string),
+    }
+  })
 }
 
 /**

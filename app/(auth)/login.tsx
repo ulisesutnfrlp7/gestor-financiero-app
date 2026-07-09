@@ -41,8 +41,9 @@ export default function LoginScreen() {
       <View className="items-center mb-10">
         <Image
           source={require('@/assets/icono.jpg')}
-          className="w-70 h-20 mb-10 rounded-2xl"
-          resizeMode="contain"
+          className="w-40 h-40 mb-6 rounded-full border-2 border-indigo-100"
+          resizeMode="cover"
+          fadeDuration={0}
         />
         <Text className="text-3xl font-bold text-gray-900">Gestor Financiero</Text>
         <Text className="text-gray-500 mt-2 text-base">Iniciá sesión para continuar</Text>
@@ -57,7 +58,7 @@ export default function LoginScreen() {
       <AuthForm
         schema={loginSchema}
         onSubmit={handleLogin}
-        submitLabel="Iniciar sesión"
+        submitLabel="Iniciar Sesión"
         isLoading={isLoading}
       >
         <TouchableOpacity onPress={() => router.replace('/(auth)/register')}>

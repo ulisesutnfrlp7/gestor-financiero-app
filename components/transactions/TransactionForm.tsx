@@ -6,17 +6,20 @@
 // - Al cambiar el 'tipo' (ingreso/gasto), se resetea la categoría porque
 //   las categorías son distintas por tipo
 // - 'amount' se trata como string en el form y se convierte a número en onSubmit
-// - La fecha usa un TextInput simple con placeholder YYYY-MM-DD para el MVP.
-//   En una versión futura se puede reemplazar por un DatePicker nativo.
+// - La fecha usa un DatePicker nativo (@react-native-community/datetimepicker)
 
-import React from 'react'
+import React, { useState } from 'react'
 import {
   View,
   Text,
   ScrollView,
   TextInput,
   TouchableOpacity,
+  Platform,
 } from 'react-native'
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from '@react-native-community/datetimepicker'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
@@ -26,7 +29,7 @@ import {
 import type { Transaction, TransactionFormData, TransactionType } from '@/types'
 import { getCategoriesByType } from '@/constants/categories'
 import { Button } from '@/components/ui/Button'
-import { getCurrentDateISO } from '@/utils/formatters'
+import { getCurrentDateISO, formatShortDate } from '@/utils/formatters'
 
 interface TransactionFormProps {
   initialData?: Transaction
@@ -39,6 +42,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   onSubmit,
   onDelete,
 }) => {
+  const [showDatePicker, setShowDatePicker] = useState(false)
+
   const {
     control,
     handleSubmit,
@@ -48,12 +53,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   } = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
     defaultValues: {
-      // Al editar, convertimos el amount número a string para el TextInput
       amount:      initialData?.amount ? String(initialData.amount) : '',
       description: initialData?.description ?? '',
       category:    initialData?.category ?? '',
       date:        initialData?.date
-        ? initialData.date.split('T')[0]  // Toma solo YYYY-MM-DD si viene como ISO
+        ? initialData.date.split('T')[0]
         : getCurrentDateISO(),
       type:        initialData?.type ?? 'expense',
     },
@@ -64,18 +68,38 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   const handleTypeChange = (type: TransactionType) => {
     setValue('type', type, { shouldValidate: false })
-    setValue('category', '', { shouldValidate: false })  // Resetear categoría al cambiar tipo
+    setValue('category', '', { shouldValidate: false })
   }
 
   const onFormSubmit = async (data: TransactionFormValues) => {
     await onSubmit({
-      amount:      parseFloat(data.amount),  // Convertir string → number al enviar
+      amount:      parseFloat(data.amount),
       description: data.description,
       category:    data.category,
       date:        data.date,
       type:        data.type,
     })
   }
+
+  const handleDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === 'ios')
+    if (selectedDate) {
+      const formatted = selectedDate.toISOString().split('T')[0]
+      setValue('date', formatted, { shouldValidate: true })
+    }
+  }
+
+  const openDatePicker = () => {
+    setShowDatePicker(true)
+  }
+
+  // Convertir string YYYY-MM-DD a Date para el picker
+  const dateValue = (() => {
+    const d = watch('date')
+    if (!d) return new Date()
+    const parts = d.split('-')
+    return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
+  })()
 
   return (
     <ScrollView
@@ -168,30 +192,31 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           )}
         </View>
 
-        {/* ── Fecha ── */}
+        {/* ── Fecha (DatePicker nativo) ── */}
         <View>
           <Text className="text-gray-700 font-medium mb-2">Fecha</Text>
-          <Controller
-            control={control}
-            name="date"
-            render={({ field: { onChange, value } }) => (
-              <TextInput
-                className={`bg-white border rounded-xl px-4 py-3 text-gray-900 ${
-                  errors.date ? 'border-red-400' : 'border-gray-200'
-                }`}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor="#9CA3AF"
-                value={value}
-                onChangeText={onChange}
-                keyboardType="numeric"
-                maxLength={10}
-              />
-            )}
-          />
+          <TouchableOpacity
+            onPress={openDatePicker}
+            className={`bg-white border rounded-xl px-4 py-3.5 ${
+              errors.date ? 'border-red-400' : 'border-gray-200'
+            }`}
+          >
+            <Text className="text-gray-900 text-base">
+              {formatShortDate(watch('date'))}
+            </Text>
+          </TouchableOpacity>
           {errors.date && (
             <Text className="text-red-500 text-xs mt-1">
               {errors.date.message}
             </Text>
+          )}
+          {showDatePicker && (
+            <DateTimePicker
+              value={dateValue}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={handleDateChange}
+            />
           )}
         </View>
 

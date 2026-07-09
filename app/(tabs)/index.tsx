@@ -53,7 +53,7 @@ export default function DashboardScreen() {
         <View className="px-5 pt-6 pb-2 flex-row items-center justify-between">
           <View>
             <Text className="text-2xl font-bold text-gray-900">Mis Finanzas</Text>
-            <Text className="text-gray-500 mt-1 text-sm">Resumen general</Text>
+            <Text className="text-gray-500 mt-1 text-sm">Resumen General</Text>
           </View>
           <TouchableOpacity
             onPress={handleLogout}
@@ -87,7 +87,7 @@ export default function DashboardScreen() {
         {/* Cantidad de movimientos */}
         <View className="mx-5 mt-3 bg-white rounded-xl p-4 border border-gray-100 flex-row items-center justify-between">
           <View>
-            <Text className="text-gray-500 text-sm">Movimientos registrados</Text>
+            <Text className="text-gray-500 text-sm">Movimientos Registrados</Text>
             <Text className="text-3xl font-bold text-gray-900 mt-1">
               {transactionCount}
             </Text>

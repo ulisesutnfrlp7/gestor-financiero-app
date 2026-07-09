@@ -57,11 +57,11 @@ export default function RegisterScreen() {
       <AuthForm
         schema={registerSchema}
         onSubmit={handleRegister}
-        submitLabel="Crear cuenta"
+        submitLabel="Crear Cuenta"
         isLoading={isLoading}
         showConfirmPassword
       >
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.replace('/(auth)/login')}>
           <Text className="text-indigo-600 text-sm font-medium">
             ¿Ya tenés cuenta? Iniciá sesión
           </Text>

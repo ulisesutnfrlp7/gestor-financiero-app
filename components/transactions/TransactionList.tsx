@@ -17,6 +17,8 @@ interface TransactionListProps {
   onItemPress: (id: string) => void
   onEdit?: (id: string) => void
   onDelete?: (id: string) => void
+  refreshing?: boolean
+  onRefresh?: () => void
 }
 
 export const TransactionList: React.FC<TransactionListProps> = ({
@@ -25,6 +27,8 @@ export const TransactionList: React.FC<TransactionListProps> = ({
   onItemPress,
   onEdit,
   onDelete,
+  refreshing = false,
+  onRefresh,
 }) => {
   // useCallback evita que renderItem se recree en cada render del padre
   const renderItem = useCallback(
@@ -57,6 +61,8 @@ export const TransactionList: React.FC<TransactionListProps> = ({
       className="flex-1"
       showsVerticalScrollIndicator={false}
       contentContainerStyle={transactions.length === 0 ? { flex: 1 } : undefined}
+      refreshing={refreshing}
+      onRefresh={onRefresh}
       ListEmptyComponent={
         <EmptyState
           icon="receipt-outline"

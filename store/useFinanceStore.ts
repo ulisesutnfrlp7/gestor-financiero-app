@@ -32,8 +32,7 @@ export const useFinanceStore = create<FinanceState>()((set) => ({
   error: null,
   userId: null,
 
-  // Setters inmutables: Zustand ya garantiza inmutabilidad con Immer opcional,
-  // pero para este MVP los setters directos son suficientes y más simples.
+  // Setters inmutables
   setTransactions: (transactions) => set({ transactions }),
   setLoading:      (isLoading)    => set({ isLoading }),
   setError:        (error)        => set({ error }),
