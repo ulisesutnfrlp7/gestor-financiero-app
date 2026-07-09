@@ -6,10 +6,12 @@
 // no cuando cambia cualquier parte del store.
 
 import React from 'react'
-import { View, Text, ScrollView, TouchableOpacity } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import { signOut } from 'firebase/auth'
+import { auth } from '@/lib/firebase'
 import {
   useFinanceStore,
   selectBalance,
@@ -25,6 +27,21 @@ export default function DashboardScreen() {
   const totalIncome      = useFinanceStore(selectTotalIncome)
   const totalExpenses    = useFinanceStore(selectTotalExpenses)
 
+  const handleLogout = () => {
+    Alert.alert(
+      'Cerrar sesión',
+      '¿Estás seguro?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Cerrar sesión',
+          style: 'destructive',
+          onPress: () => signOut(auth),
+        },
+      ]
+    )
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       <ScrollView
@@ -33,9 +50,17 @@ export default function DashboardScreen() {
         contentContainerStyle={{ paddingBottom: 100 }}
       >
         {/* Encabezado */}
-        <View className="px-5 pt-6 pb-2">
-          <Text className="text-2xl font-bold text-gray-900">Mis Finanzas</Text>
-          <Text className="text-gray-500 mt-1 text-sm">Resumen general</Text>
+        <View className="px-5 pt-6 pb-2 flex-row items-center justify-between">
+          <View>
+            <Text className="text-2xl font-bold text-gray-900">Mis Finanzas</Text>
+            <Text className="text-gray-500 mt-1 text-sm">Resumen general</Text>
+          </View>
+          <TouchableOpacity
+            onPress={handleLogout}
+            className="w-10 h-10 rounded-full items-center justify-center bg-gray-100"
+          >
+            <Ionicons name="log-out-outline" size={20} color="#6B7280" />
+          </TouchableOpacity>
         </View>
 
         {/* Tarjeta de balance */}

@@ -12,11 +12,15 @@ import { getCategoryById } from '@/constants/categories'
 interface TransactionItemProps {
   transaction: Transaction
   onPress: () => void
+  onEdit?: () => void
+  onDelete?: () => void
 }
 
 const TransactionItemComponent: React.FC<TransactionItemProps> = ({
   transaction,
   onPress,
+  onEdit,
+  onDelete,
 }) => {
   const isIncome = transaction.type === 'income'
   const category = getCategoryById(transaction.category)
@@ -54,15 +58,35 @@ const TransactionItemComponent: React.FC<TransactionItemProps> = ({
         </Text>
       </View>
 
-      {/* Monto */}
-      <Text
-        className={`font-semibold text-sm flex-shrink-0 ${
-          isIncome ? 'text-green-600' : 'text-red-600'
-        }`}
-      >
-        {isIncome ? '+' : '-'}
-        {formatCurrency(transaction.amount)}
-      </Text>
+      {/* Monto y acciones */}
+      <View className="flex-row items-center flex-shrink-0 gap-2">
+        <Text
+          className={`font-semibold text-sm ${
+            isIncome ? 'text-green-600' : 'text-red-600'
+          }`}
+        >
+          {isIncome ? '+' : '-'}
+          {formatCurrency(transaction.amount)}
+        </Text>
+        {onEdit && (
+          <TouchableOpacity
+            onPress={onEdit}
+            className="w-8 h-8 rounded-full items-center justify-center bg-indigo-50"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="pencil-outline" size={16} color="#4F46E5" />
+          </TouchableOpacity>
+        )}
+        {onDelete && (
+          <TouchableOpacity
+            onPress={onDelete}
+            className="w-8 h-8 rounded-full items-center justify-center bg-red-50"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="trash-outline" size={16} color="#DC2626" />
+          </TouchableOpacity>
+        )}
+      </View>
     </TouchableOpacity>
   )
 }

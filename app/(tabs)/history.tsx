@@ -3,16 +3,36 @@
 // (el orden lo maneja la query de Firestore, no el cliente).
 
 import React from 'react'
-import { View, Text, TouchableOpacity } from 'react-native'
+import { View, Text, TouchableOpacity, Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useFinanceStore } from '@/store/useFinanceStore'
 import { TransactionList } from '@/components/transactions/TransactionList'
+import { deleteTransaction } from '@/services/transactions.service'
 
 export default function HistoryScreen() {
   const transactions = useFinanceStore((state) => state.transactions)
   const isLoading    = useFinanceStore((state) => state.isLoading)
+
+  const handleEdit = (id: string) => {
+    router.push(`/transaction/${id}`)
+  }
+
+  const handleDelete = (id: string) => {
+    Alert.alert(
+      'Eliminar Movimiento',
+      '¿Estás seguro? Esta acción no se puede deshacer.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => deleteTransaction(id),
+        },
+      ]
+    )
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
@@ -30,6 +50,8 @@ export default function HistoryScreen() {
         transactions={transactions}
         isLoading={isLoading}
         onItemPress={(id) => router.push(`/transaction/${id}`)}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
       />
 
       {/* FAB */}

@@ -36,7 +36,7 @@ export const subscribeToTransactions = (
   const q = query(
     collection(db, COLLECTION),
     where('userId', '==', userId),
-    orderBy('date', 'desc')
+    orderBy('createdAt', 'desc')
   )
 
   return onSnapshot(
@@ -77,8 +77,13 @@ export const createTransaction = async (
   data: TransactionFormData
 ): Promise<string> => {
   const now = new Date().toISOString()
+
+  // date ya viene como string YYYY-MM-DD desde el formulario (validado por Zod).
+  // Se pasa explícitamente para evitar que Firestore lo convierta a Timestamp
+  // y rompa el orderBy('date', 'desc') en la consulta.
   const docRef = await addDoc(collection(db, COLLECTION), {
     ...data,
+    date: data.date,
     userId,
     createdAt: now,
     updatedAt: now,

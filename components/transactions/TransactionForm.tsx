@@ -82,8 +82,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       className="flex-1"
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingBottom: 40 }}
     >
-      <View className="px-5 pt-6 pb-12 gap-5">
+      <View className="px-5 pt-6 gap-5">
 
         {/* ── Tipo: Ingreso / Gasto ── */}
         <View>
@@ -237,14 +238,14 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         {/* ── Botones ── */}
         <View className="gap-3 mt-2">
           <Button
-            title={initialData ? 'Guardar cambios' : 'Registrar movimiento'}
+            title={initialData ? 'Guardar Cambios' : 'Registrar Movimiento'}
             onPress={handleSubmit(onFormSubmit)}
             loading={isSubmitting}
           />
 
           {onDelete && (
             <Button
-              title="Eliminar movimiento"
+              title="Eliminar Movimiento"
               onPress={onDelete}
               variant="danger"
               disabled={isSubmitting}

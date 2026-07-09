@@ -15,12 +15,16 @@ interface TransactionListProps {
   transactions: Transaction[]
   isLoading: boolean
   onItemPress: (id: string) => void
+  onEdit?: (id: string) => void
+  onDelete?: (id: string) => void
 }
 
 export const TransactionList: React.FC<TransactionListProps> = ({
   transactions,
   isLoading,
   onItemPress,
+  onEdit,
+  onDelete,
 }) => {
   // useCallback evita que renderItem se recree en cada render del padre
   const renderItem = useCallback(
@@ -28,9 +32,11 @@ export const TransactionList: React.FC<TransactionListProps> = ({
       <TransactionItem
         transaction={item}
         onPress={() => onItemPress(item.id)}
+        onEdit={onEdit ? () => onEdit(item.id) : undefined}
+        onDelete={onDelete ? () => onDelete(item.id) : undefined}
       />
     ),
-    [onItemPress]
+    [onItemPress, onEdit, onDelete]
   )
 
   const keyExtractor = useCallback((item: Transaction) => item.id, [])

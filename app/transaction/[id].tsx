@@ -33,7 +33,7 @@ export default function EditTransactionScreen() {
 
   const handleDelete = () => {
     Alert.alert(
-      'Eliminar movimiento',
+      'Eliminar Movimiento',
       '¿Estás seguro? Esta acción no se puede deshacer.',
       [
         { text: 'Cancelar', style: 'cancel' },
