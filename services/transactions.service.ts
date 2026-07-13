@@ -37,7 +37,7 @@ export const subscribeToTransactions = (
   const q = query(
     collection(db, COLLECTION),
     where('userId', '==', userId),
-    orderBy('createdAt', 'desc')
+    orderBy('date', 'desc')
   )
 
   return onSnapshot(
@@ -80,7 +80,7 @@ export const fetchTransactions = async (
   const q = query(
     collection(db, COLLECTION),
     where('userId', '==', userId),
-    orderBy('createdAt', 'desc')
+    orderBy('date', 'desc')
   )
   const snapshot = await getDocs(q)
   return snapshot.docs.map((docSnap) => {

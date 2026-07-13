@@ -40,7 +40,7 @@ export default function LoginScreen() {
     >
       <View className="items-center mb-10">
         <Image
-          source={require('@/assets/icono.jpg')}
+          source={require('@/assets/icono.png')}
           className="w-40 h-40 mb-6 rounded-full border-2 border-indigo-100"
           resizeMode="cover"
           fadeDuration={0}

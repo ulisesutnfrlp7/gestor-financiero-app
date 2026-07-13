@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "scheme": "gestor-financiero-app",
     "orientation": "portrait",
-    "icon": "./assets/icono.jpg",
+    "icon": "./assets/icono.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
@@ -26,6 +26,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "36a7e254-d33e-4186-af93-e9d19c80e157"
+      }
     }
   }
 }
