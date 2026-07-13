@@ -1404,3 +1404,74 @@ eas build --platform android --profile production
 Si el build falla con otro error, pegame el log y lo vemos.
 
 **¿Querés que sigamos iterando hasta que pase, o preferís esperar el resultado primero?**
+
+# CONVERSACIÓN 13/07/2026
+
+Actúa como un experto en desarrollo móvil con React Native y Expo. Estoy teniendo un problema de 'crash' al abrir mi aplicación en un dispositivo Android físico:
+**Contexto:** He logrado compilar exitosamente la app usando EAS Build, el ícono aparece y la app se instala, pero al intentar abrirla se cierra inmediatamente (crash al inicio).
+
+Analicé el stack técnico. El crash al abrir la app en Android tiene **tres causas probables**, ordenadas por probabilidad:
+
+---
+
+### 🔴 Causa #1 (MÁS PROBABLE): Falta el plugin de Reanimated en Babel
+
+`react-native-reanimated` **requiere** un plugin específico en `babel.config.js`. Sin él, la app compila pero crashea al iniciar porque no puede interpretar el código de Reanimated.
+
+Tu `babel.config.js` actual:
+```js
+presets: [
+  ['babel-preset-expo', { jsxImportSource: 'nativewind' }],
+  'nativewind/babel',
+],
+// ⚠️ FALTA: 'react-native-reanimated/plugin'
+```
+
+**Solución:** Agregar `'react-native-reanimated/plugin'` al final de la lista de plugins (es importante que sea **el último plugin**).
+
+---
+
+### 🔴 Causa #2: Producción no tiene `--legacy-peer-deps`
+
+En `eas.json`, el perfil `production` no tiene `NPM_CONFIG_LEGACY_PEER_DEPS: "true"`, mientras que `preview` sí. Si el servidor de EAS resuelve dependencias diferente al local, puede instalar versiones incompatibles.
+
+**Solución:** Agregar la variable de entorno al perfil `production`.
+
+---
+
+### 🟡 Causa #3: Firebase Auth sin AsyncStorage nativo
+
+El warning de Firebase Auth que vimos antes (`AsyncStorage no provisto`) puede ser un crash en producción cuando la persistencia falla.
+
+**Solución:** Ya lo habíamos intentado, pero podríamos probar un enfoque más simple.
+
+---
+
+### Plan de acción
+
+| Archivo | Cambio |
+|---------|--------|
+| `babel.config.js` | Agregar `'react-native-reanimated/plugin'` al final |
+| `eas.json` | Agregar `NPM_CONFIG_LEGACY_PEER_DEPS: "true"` en producción |
+
+Después de esos cambios → re-build con `eas build --platform android --profile production`.
+
+**¿Querés que lo haga?** Pasame a **Act Mode** y lo resuelvo.
+
+hacé lo relacionado a la Causa #1. El tema de Producción (causa #2) con --legace-peer-deps no aplica porque voy a subir la aplicación como preview. Para production necesito pagar en dólares. Por otro lado, la causa #3 ya está resuelta.
+
+✅ **Plugin de Reanimated agregado** en `babel.config.js`.
+
+Este plugin es **obligatorio** para que `react-native-reanimated` funcione en producción. Sin él, la app compila el APK pero crashea al abrirse porque no puede interpretar el código de Reanimated en tiempo de ejecución.
+
+Importante: el plugin debe ir **siempre al final** de la lista de plugins, que es justo donde lo puse.
+
+### Próximo paso
+
+Reconstruí la app con:
+
+```bash
+eas build --platform android --profile preview
+```
+
+Eso debería resolver el crash de apertura. Si vuelve a fallar, pegame el log y lo revisamos.
