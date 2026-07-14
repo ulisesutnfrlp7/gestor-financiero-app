@@ -1751,3 +1751,70 @@ npx expo start --clear
 Eso debería resolverlo. Si vuelve a aparecer después de varios hot reloads, repetí el mismo paso.
 
 En producción (build APK) este error **no ocurre** porque no hay HMR.
+
+Planeemos. Hasta ahora, todo lo que aparece en Dashboard es histórico (Balance, Ingresos, Gastos, Movimientos Registrados, Gastos por Categoría e Ingresos por Categoría). Quiero que el usuario pueda visualizar todo eso mismo pero SEGÚN LOS MOVIMIENTOS POR MES. Me imagino algo como el hecho de tener el nombre del principio "Mis Finanzas" y, debajo, un selector de 2 fechas para filtrar todo según esas 2 fechas. O sea, el usuario debe poder elegir entre un Resumen General (el que está actualmente) o la selección de un rango de fechas.
+
+Buena idea. Acá va el plan:
+
+### Arquitectura
+
+Agregar un filtro de rango de fechas en el Dashboard que afecte **todo** el contenido (balance, tarjetas, gráficos). El usuario puede ver "Resumen General" (sin filtro) o seleccionar un rango.
+
+### Componentes
+
+| Archivo | Acción |
+|---------|--------|
+| `components/dashboard/DateRangeFilter.tsx` | **Crear** — Barra con dos botones de fecha "Desde" y "Hasta" + botón "Limpiar" |
+| `app/(tabs)/index.tsx` | **Modificar** — Agregar estado de fechas, `useMemo` para filtrar transacciones, pasar datos filtrados a todos los componentes |
+
+### Lógica
+
+1. Estado local: `dateFrom: string`, `dateTo: string` (formato YYYY-MM-DD)
+2. Si ambas están vacías → mostrar todo (Resumen General)
+3. Si hay fechas → filtrar `transactions` con `useMemo`
+4. Pasar las `filteredTransactions` a:
+   - `BalanceCard`
+   - `SummaryItem` (ingresos y gastos)
+   - Contador de movimientos
+   - `CategoryChart` (gastos e ingresos)
+5. Los selectores de fecha usan el DateTimePicker nativo (ya instalado)
+
+### Diseño UX
+
+```
+Mis Finanzas        [Cerrar sesión]
+
+[Desde: 01/07/2026] [Hasta: 15/07/2026]  [Limpiar]  ← nuevo
+                                                     ← solo si hay filtro activo
+
+Balance: $XXX
+[Ingresos] [Gastos]
+Movimientos: X
+Gastos por categoría (gráfico)
+Ingresos por categoría (gráfico)
+```
+
+**¿Te parece?** Si estás de acuerdo, pasame a **Act Mode**.
+
+✅ **Filtro por rango de fechas implementado en el Dashboard.**
+
+### Archivos creados
+| Archivo | Propósito |
+|---------|-----------|
+| `components/dashboard/DateRangeFilter.tsx` | Selector con dos botones "Desde" y "Hasta" + botón "Limpiar" con X |
+
+### Archivos modificados
+| Archivo | Cambio |
+|---------|--------|
+| `app/(tabs)/index.tsx` | Agregado estado `dateFrom`/`dateTo`, filtrado con `useMemo`, todos los componentes usan `filteredTransactions` |
+
+### Cómo funciona
+- **Por defecto:** "Resumen General" — muestra todo como antes
+- **Al seleccionar fechas:** el subtítulo cambia a "Del YYYY-MM-DD al YYYY-MM-DD" y todos los datos se recalculan:
+  - Balance
+  - Ingresos y Gastos
+  - Contador de movimientos
+  - Gráficos de gastos e ingresos por categoría
+- **Botón X:** limpia el filtro y vuelve a "Resumen General"
+
+Reinicá la app con `r` y probá seleccionando fechas en el Dashboard.

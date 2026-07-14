@@ -5,29 +5,53 @@
 // Esto garantiza que solo se re-renderiza cuando cambia el valor que necesita,
 // no cuando cambia cualquier parte del store.
 
-import React from 'react'
+import React, { useState, useMemo } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { signOut } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
-import {
-  useFinanceStore,
-  selectBalance,
-  selectTotalIncome,
-  selectTotalExpenses,
-} from '@/store/useFinanceStore'
+import { useFinanceStore } from '@/store/useFinanceStore'
 import { BalanceCard } from '@/components/dashboard/BalanceCard'
 import { SummaryItem } from '@/components/dashboard/SummaryItem'
 import { CategoryChart } from '@/components/dashboard/CategoryChart'
+import { DateRangeFilter } from '@/components/dashboard/DateRangeFilter'
 
 export default function DashboardScreen() {
   const transactions = useFinanceStore((state) => state.transactions)
-  const transactionCount = transactions.length
-  const balance          = useFinanceStore(selectBalance)
-  const totalIncome      = useFinanceStore(selectTotalIncome)
-  const totalExpenses    = useFinanceStore(selectTotalExpenses)
+
+  // Estado para el filtro de fechas
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
+  // Filtrar transacciones según el rango de fechas
+  const filteredTransactions = useMemo(() => {
+    if (!dateFrom && !dateTo) return transactions
+    return transactions.filter((t) => {
+      if (dateFrom && t.date < dateFrom) return false
+      if (dateTo && t.date > dateTo) return false
+      return true
+    })
+  }, [transactions, dateFrom, dateTo])
+
+  // Calcular métricas sobre las transacciones filtradas
+  const totalIncome = useMemo(
+    () => filteredTransactions
+      .filter((t) => t.type === 'income')
+      .reduce((sum, t) => sum + t.amount, 0),
+    [filteredTransactions]
+  )
+
+  const totalExpenses = useMemo(
+    () => filteredTransactions
+      .filter((t) => t.type === 'expense')
+      .reduce((sum, t) => sum + t.amount, 0),
+    [filteredTransactions]
+  )
+
+  const balance = totalIncome - totalExpenses
+  const transactionCount = filteredTransactions.length
 
   const handleLogout = () => {
     Alert.alert(
@@ -44,6 +68,10 @@ export default function DashboardScreen() {
     )
   }
 
+  const subtitle = dateFrom || dateTo
+    ? `Del ${dateFrom ? dateFrom : '—'} al ${dateTo ? dateTo : '—'}`
+    : 'Resumen General'
+
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       <ScrollView
@@ -55,7 +83,7 @@ export default function DashboardScreen() {
         <View className="px-5 pt-6 pb-2 flex-row items-center justify-between">
           <View>
             <Text className="text-2xl font-bold text-gray-900">Mis Finanzas</Text>
-            <Text className="text-gray-500 mt-1 text-sm">Resumen General</Text>
+            <Text className="text-gray-500 mt-1 text-sm">{subtitle}</Text>
           </View>
           <TouchableOpacity
             onPress={handleLogout}
@@ -65,8 +93,18 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Filtro de fechas */}
+        <DateRangeFilter
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onChange={(from, to) => {
+            setDateFrom(from)
+            setDateTo(to)
+          }}
+        />
+
         {/* Tarjeta de balance */}
-        <View className="px-5 mt-4">
+        <View className="px-5 mt-5">
           <BalanceCard balance={balance} />
         </View>
 
@@ -99,9 +137,9 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* Gráfico de gastos por categoría */}
-        <CategoryChart transactions={transactions} type="expense" />
-        <CategoryChart transactions={transactions} type="income" />
+        {/* Gráficos por categoría */}
+        <CategoryChart transactions={filteredTransactions} type="expense" />
+        <CategoryChart transactions={filteredTransactions} type="income" />
       </ScrollView>
 
       {/* FAB — Floating Action Button */}
