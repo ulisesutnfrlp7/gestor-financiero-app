@@ -20,9 +20,11 @@ import {
 } from '@/store/useFinanceStore'
 import { BalanceCard } from '@/components/dashboard/BalanceCard'
 import { SummaryItem } from '@/components/dashboard/SummaryItem'
+import { CategoryChart } from '@/components/dashboard/CategoryChart'
 
 export default function DashboardScreen() {
-  const transactionCount = useFinanceStore((state) => state.transactions.length)
+  const transactions = useFinanceStore((state) => state.transactions)
+  const transactionCount = transactions.length
   const balance          = useFinanceStore(selectBalance)
   const totalIncome      = useFinanceStore(selectTotalIncome)
   const totalExpenses    = useFinanceStore(selectTotalExpenses)
@@ -96,6 +98,10 @@ export default function DashboardScreen() {
             <Ionicons name="swap-vertical-outline" size={24} color="#4F46E5" />
           </View>
         </View>
+
+        {/* Gráfico de gastos por categoría */}
+        <CategoryChart transactions={transactions} type="expense" />
+        <CategoryChart transactions={transactions} type="income" />
       </ScrollView>
 
       {/* FAB — Floating Action Button */}

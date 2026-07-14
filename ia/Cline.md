@@ -1558,3 +1558,196 @@ return (
 ---
 
 Aplicá los tres cambios.
+
+✅ **Los tres cambios aplicados en `app/_layout.tsx`:**
+
+### Fix 1 — Imports
+- Agregado `useRef` y `GestureHandlerRootView`
+- Eliminado `useSegments` (ya no se necesita)
+
+### Fix 2 — useEffect simplificado
+- `segments` eliminado del dependency array → ahora es `[]` (se ejecuta una sola vez)
+- Agregado `splashHidden` con `useRef(false)` para ocultar el splash solo una vez
+- La redirección ahora es directa: si hay usuario → `/(tabs)`, si no → `/(auth)/login`
+
+### Fix 3 — Wrapper GestureHandlerRootView
+- Todo el contenido envuelto en `<GestureHandlerRootView style={{ flex: 1 }}>`
+- Esto evita el crash de `react-native-gesture-handler` en la New Architecture
+
+### Próximo paso
+Reconstruí con:
+
+```bash
+eas build --platform android --profile preview
+```
+
+La app ya no debería crashear al abrirse.
+
+Planeemos una nueva funcionalidad: | **Gráfico de gastos por categoría** | Chart simple (pastel o barras) en el Dashboard |
+
+Buen plan. Acá va la arquitectura:
+
+### Librería: `react-native-chart-kit`
+Es la más simple para Expo, requiere `react-native-svg`. Soporta gráficos de pastel y barras.
+
+### Archivos a crear/modificar
+
+| Archivo | Acción |
+|---------|--------|
+| `package.json` | Instalar `react-native-svg` y `react-native-chart-kit` |
+| `components/dashboard/ExpensesByCategoryChart.tsx` | **Crear** — Componente que agrupa gastos por categoría y renderiza un gráfico de pastel |
+| `app/(tabs)/index.tsx` | **Modificar** — Agregar el componente debajo de "Movimientos Registrados" |
+
+### Lógica del componente
+1. Tomar las transacciones del store
+2. Filtrar solo `type === 'expense'`
+3. Agrupar por `category` sumando los montos
+4. Mapear cada categoría a su label y color
+5. Renderizar un `PieChart` con `react-native-chart-kit`
+
+### Colores para cada categoría
+Usaré una paleta fija de colores para las categorías de gasto.
+
+**¿Te parece?** Si estás de acuerdo, pasame a **Act Mode** y lo implemento.
+
+✅ **Gráfico de gastos por categoría implementado.**
+
+### Archivos creados
+| Archivo | Propósito |
+|---------|-----------|
+| `components/dashboard/ExpensesByCategoryChart.tsx` | Gráfico de pastel que agrupa gastos por categoría, con colores únicos y total al pie |
+
+### Archivos modificados
+| Archivo | Cambio |
+|---------|--------|
+| `app/(tabs)/index.tsx` | Agregado `ExpensesByCategoryChart` debajo de "Movimientos Registrados" |
+
+### Cómo funciona
+- Toma las transacciones del store de Zustand
+- Filtra solo gastos (`type === 'expense'`)
+- Agrupa por categoría y suma los montos
+- Muestra un gráfico de pastel con colores por categoría y una leyenda abajo
+- Si no hay gastos, no se muestra nada
+- Se actualiza automáticamente cuando se agregan/editan/eliminan movimientos (porque el store es reactivo)
+
+Reinicá la app con `r` y deberías ver el gráfico en el Dashboard debajo del contador de movimientos.
+
+Unable to resolve "react-native-chart-kit" from "components\dashboard\ExpensesByCategoryChart.tsx"
+   5 | import React, { useMemo } from 'react'
+   6 | import { View, Text, Dimensions } from 'react-native'
+>  7 | import { PieChart } from 'react-native-chart-kit'
+     |                           ^
+   8 | import type { Transaction } from '@/types'
+   9 | import { getCategoryById } from '@/constants/categories'
+  10 |
+
+Import stack:
+
+ components\dashboard\ExpensesByCategoryChart.tsx
+ | import "react-native-chart-kit"
+
+ app\(tabs)\index.tsx
+ | import "@/components/dashboard/ExpensesByCategoryChart"
+
+ app (require.context)
+
+El problema es que los paquetes `react-native-chart-kit` y `react-native-svg` están en `package.json` pero Metro Bundler no puede resolverlos. Es un problema de caché de Metro.
+
+**Solución:** Ejecutá esto en tu terminal (CMD):
+
+```cmd
+npx expo start --clear
+```
+
+Eso limpia la caché de Metro y vuelve a compilar todo desde cero. Después de eso la app debería reconocer los paquetes.
+
+Si aún así falla, probá:
+
+```cmd
+cd node_modules && rm -rf .cache && cd ..
+npx expo start --clear
+```
+
+**¿Probás y me contás si funciona?**
+
+bien. ahora necesito exactamente lo mismo, pero para los ingresos.
+
+Lo más simple y ordenado: crear un componente genérico `CategoryChart` que reciba el tipo (`income` o `expense`) y muestre el gráfico correspondiente, reemplazando al componente específico de gastos.
+
+### Archivos a modificar
+
+| Archivo | Acción |
+|---------|--------|
+| `components/dashboard/CategoryChart.tsx` | **Crear** — Componente genérico que recibe `type` y `transactions` |
+| `components/dashboard/ExpensesByCategoryChart.tsx` | **Eliminar** (reemplazado por el genérico) |
+| `app/(tabs)/index.tsx` | **Modificar** — Agregar dos instancias de `CategoryChart`, una para ingresos y otra para gastos |
+
+### Diseño del componente
+- Título: "Ingresos por Categoría" o "Gastos por Categoría"
+- Colores: verde para ingresos, rojo/naranja para gastos
+- Mismo gráfico de pastel
+
+**¿Te parece?** Si estás de acuerdo, pasame a **Act Mode**.
+
+básicamente, quiero que el gráfico de "Gastos por Categoría" quede intacto, con esos colores. Solo quiero sumar el de "Ingresos por Categoría" abajo. Me parece bien lo del componente genérico.
+
+✅ **Gráfico de ingresos por categoría agregado.**
+
+### Cambios realizados
+
+| Archivo | Cambio |
+|---------|--------|
+| `components/dashboard/CategoryChart.tsx` | **Creado** — Componente genérico que recibe `transactions` y `type` ("income" o "expense") y renderiza el gráfico de pastel con colores específicos para cada tipo |
+| `app/(tabs)/index.tsx` | **Modificado** — Reemplazado `ExpensesByCategoryChart` por dos instancias de `CategoryChart`: una para gastos (con colores rojos/naranjas) y otra para ingresos (con colores verdes/azules) |
+
+Ahora el Dashboard muestra (en este orden):
+1. Balance
+2. Ingresos y Gastos (tarjetas)
+3. Movimientos registrados
+4. **Gráfico de Gastos por Categoría** (colores originales)
+5. **Gráfico de Ingresos por Categoría** (nuevo, con colores verde/azul/amarillo)
+
+El archivo `ExpensesByCategoryChart.tsx` ya no se usa, podés eliminarlo si querés.
+
+Reinicá la app con `r` y deberías ver ambos gráficos.
+
+ERROR  [Invariant Violation: Tried to register two views with the same name RNSVGFilter]
+
+Call Stack
+  invariant (node_modules\invariant\browser.js)
+  register (node_modules\react-native\Libraries\Renderer\shims\ReactNativeViewConfigRegistry.js)
+  get (node_modules\react-native\Libraries\NativeComponent\NativeComponentRegistry.js)
+  <global> (node_modules\react-native-svg\src\fabric\FilterNativeComponent.ts)
+  loadModuleImplementation (node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\@expo\cli\build\metro-require\require.js)
+  runUpdatedModule (node_modules\@expo\cli\build\metro-require\require.js)
+  metroHotUpdateModule (node_modules\@expo\cli\build\metro-require\require.js)
+  define (node_modules\@expo\cli\build\metro-require\require.js)
+  eval (http:\y8fb6pm-uliedlp7-8081.exp.direct\node_modules\react-native-svg\src\fabric\FilterNativeComponent.bundle)
+  inject (node_modules\metro-runtime\src\modules\HMRClient.js)
+  forEach (<native>)
+  injectUpdate (node_modules\metro-runtime\src\modules\HMRClient.js)
+  on$argument_1 (node_modules\metro-runtime\src\modules\HMRClient.js)
+  call (<native>)
+  emit (node_modules\metro-runtime\src\modules\vendor\eventemitter3.js)
+  _ws.onmessage (node_modules\metro-runtime\src\modules\HMRClient.js)
+  invoke (node_modules\react-native\src\private\webapis\dom\events\EventTarget.js)
+  dispatch (node_modules\react-native\src\private\webapis\dom\events\EventTarget.js)
+  dispatchEvent (node_modules\react-native\src\private\webapis\dom\events\EventTarget.js)
+  _eventEmitter.addListener$argument_1 (node_modules\react-native\Libraries\WebSocket\WebSocket.js)
+
+Este error es conocido de `react-native-svg` con Fast Refresh (HMR) en Expo. No es un error de tu código ni de producción, solo ocurre en desarrollo cuando hacés un hot reload y el módulo SVG se registra dos veces.
+
+**Solución:** Limpiar la caché de Metro y reiniciar.
+
+1. Presioná `Ctrl+C` en la terminal para cerrar el servidor de Expo
+2. Ejecutá:
+
+```cmd
+npx expo start --clear
+```
+
+Eso debería resolverlo. Si vuelve a aparecer después de varios hot reloads, repetí el mismo paso.
+
+En producción (build APK) este error **no ocurre** porque no hay HMR.

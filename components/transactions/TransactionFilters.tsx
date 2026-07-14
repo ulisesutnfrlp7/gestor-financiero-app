@@ -152,7 +152,7 @@ export const TransactionFilters: React.FC<TransactionFiltersProps> = ({
       {/* Botón limpiar filtros */}
       {hasActiveFilters && (
         <TouchableOpacity onPress={clearFilters} className="mt-2 self-start">
-          <Text className="text-indigo-600 text-xs font-medium">Limpiar filtros</Text>
+          <Text className="text-indigo-600 text-xs font-medium">Limpiar Filtros</Text>
         </TouchableOpacity>
       )}
 
