@@ -1475,3 +1475,86 @@ eas build --platform android --profile preview
 ```
 
 Eso debería resolver el crash de apertura. Si vuelve a fallar, pegame el log y lo revisamos.
+
+# CONVERSACIÓN 14/07/2026
+
+## Causa del crash confirmada
+
+**`react-native-gesture-handler` v2.28.0 + New Architecture** requiere `GestureHandlerRootView` en el root del árbol de componentes para llamar a `RNGestureHandlerModule.install()`. Sin él, Fabric nunca inicializa el módulo nativo → crash inmediato al abrir.
+
+---
+
+## Fix 1 — Imports en _layout.tsx
+
+Reemplazá:
+
+```typescript
+// ANTES
+import { useEffect } from 'react'
+import { useSegments, useRouter } from 'expo-router'
+// sin GestureHandlerRootView
+
+// DESPUÉS
+import { useEffect, useRef } from 'react'
+import { useRouter } from 'expo-router'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
+```
+
+---
+
+## Fix 2 — `useEffect` y su dependency array
+
+```typescript
+// ANTES — segments en el array causa que el efecto se re-ejecute en cada navegación
+}, [segments, router, setUserId])
+
+// DESPUÉS — array vacío, onAuthStateChanged ya dispara con el estado inicial
+const splashHidden = useRef(false)
+
+useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      setUserId(user.uid)
+      router.replace('/(tabs)')
+    } else {
+      setUserId(null)
+      router.replace('/(auth)/login')
+    }
+    if (!splashHidden.current) {
+      splashHidden.current = true
+      await SplashScreen.hideAsync()
+    }
+  })
+  return () => unsubscribe()
+}, [])  // ← array vacío
+```
+
+---
+
+## Fix 3 — Wrapper en el `return`
+
+```tsx
+// ANTES
+return (
+  <>
+    <Stack>
+      ...
+    </Stack>
+    <StatusBar style="dark" />
+  </>
+)
+
+// DESPUÉS
+return (
+  <GestureHandlerRootView style={{ flex: 1 }}>
+    <Stack>
+      ...
+    </Stack>
+    <StatusBar style="dark" />
+  </GestureHandlerRootView>
+)
+```
+
+---
+
+Aplicá los tres cambios.

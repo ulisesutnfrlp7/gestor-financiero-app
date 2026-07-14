@@ -8,12 +8,13 @@
 // 4. Iniciar la suscripción en tiempo real a Firestore via useTransactions()
 // 5. Controlar la visibilidad del Splash Screen
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
 import { onAuthStateChanged } from 'firebase/auth'
-import { useSegments, useRouter } from 'expo-router'
+import { useRouter } from 'expo-router'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { auth } from '@/lib/firebase'
 import { useFinanceStore } from '@/store/useFinanceStore'
 import { useTransactions } from '@/hooks/useTransactions'
@@ -23,9 +24,9 @@ import '../global.css'
 SplashScreen.preventAutoHideAsync()
 
 export default function RootLayout() {
-  const segments = useSegments()
   const router = useRouter()
   const setUserId = useFinanceStore((state) => state.setUserId)
+  const splashHidden = useRef(false)
 
   // Suscripción Firestore: activa una vez que userId esté seteado
   useTransactions()
@@ -34,30 +35,23 @@ export default function RootLayout() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setUserId(user.uid)
+        router.replace('/(tabs)')
       } else {
         setUserId(null)
-      }
-
-      // Determinar si estamos en una ruta de auth
-      const inAuthGroup = segments[0] === '(auth)'
-
-      if (!user && !inAuthGroup) {
-        // No hay usuario y no estamos en auth → redirigir a login
         router.replace('/(auth)/login')
-      } else if (user && inAuthGroup) {
-        // Hay usuario y estamos en auth → redirigir a tabs
-        router.replace('/(tabs)')
       }
 
-      // Ocultar splash una vez que tenemos el estado de auth
-      await SplashScreen.hideAsync()
+      if (!splashHidden.current) {
+        splashHidden.current = true
+        await SplashScreen.hideAsync()
+      }
     })
 
     return () => unsubscribe()
-  }, [segments, router, setUserId])
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <Stack>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -84,6 +78,6 @@ export default function RootLayout() {
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="dark" />
-    </>
+    </GestureHandlerRootView>
   )
 }
