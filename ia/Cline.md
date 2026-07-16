@@ -2152,3 +2152,71 @@ Abre tu archivo **`eas.json`** y agrega un bloque `"env"` dentro del perfil `"pr
 Esta vez, cuando el APK se instale, Firebase encontrará sus llaves, inicializará correctamente y la aplicación abrirá sin cerrarse.
 
 estaba fallando eso. hay que cambiar el archivo eas.json
+
+¡Excelente diagnóstico! 🔥 El error `auth/invalid-api-key` confirma que **las variables de entorno no llegan al servidor de EAS**. El `.env` está en `.gitignore`, así que nunca viaja a la nube.
+
+**Solución correcta:** Agregar el bloque `"env"` en `eas.json` con tus credenciales reales de Firebase.
+
+El archivo actual está así:
+
+```json
+"preview": {
+  "distribution": "internal",
+  "android": {
+    "buildType": "apk"
+  },
+  "env": {
+    "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+  }
+}
+```
+
+Hay que reemplazarlo por:
+
+```json
+"preview": {
+  "distribution": "internal",
+  "android": {
+    "buildType": "apk"
+  },
+  "env": {
+    "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
+    "EXPO_PUBLIC_FIREBASE_API_KEY": "TU_API_KEY",
+    "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "TU_AUTH_DOMAIN",
+    "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "TU_PROJECT_ID",
+    "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "TU_STORAGE_BUCKET",
+    "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "TU_SENDER_ID",
+    "EXPO_PUBLIC_FIREBASE_APP_ID": "TU_APP_ID"
+  }
+}
+```
+
+Toggleame a **Act Mode** y lo implemento. Necesitás tener a mano los valores del `.env` para copiarlos.
+
+dale, ya creé el .env pero te los mando por acá igual:
+
+EXPO_PUBLIC_FIREBASE_API_KEY=AIzaSyBY-hUv4RDuXerRISoCZz3y6RpMAsmNScY
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=gestor-financiero-app-umb.firebaseapp.com
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=gestor-financiero-app-umb
+EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=gestor-financiero-app-umb.firebasestorage.app
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=33659497492
+EXPO_PUBLIC_FIREBASE_APP_ID=1:33659497492:web:98cc02f1869a9688aa0b01
+EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=G-DYZXVD2X1M
+
+**Causa raíz identificada y corregida:** El crash ocurría porque las variables de entorno `EXPO_PUBLIC_FIREBASE_*` no llegaban al servidor de EAS Build. El archivo `.env` está en `.gitignore`, por lo que nunca viajaba a la nube. Firebase recibía `undefined` como API Key y lanzaba `auth/invalid-api-key`, matando la app al inicio.
+
+**Solución:** Se agregaron las 6 variables de Firebase directamente en `eas.json` dentro del perfil `preview`:
+
+| Variable | Valor |
+|----------|-------|
+| `EXPO_PUBLIC_FIREBASE_API_KEY` | AIzaSyBY-... |
+| `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN` | gestor-financiero-app-umb.firebaseapp.com |
+| `EXPO_PUBLIC_FIREBASE_PROJECT_ID` | gestor-financiero-app-umb |
+| `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET` | gestor-financiero-app-umb.firebasestorage.app |
+| `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | 33659497492 |
+| `EXPO_PUBLIC_FIREBASE_APP_ID` | 1:33659497492:web:98cc02f1869a9688aa0b01 |
+
+**Próximo paso:** Reconstruir con:
+```
+eas build --platform android --profile preview
+```
