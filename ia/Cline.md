@@ -1818,3 +1818,337 @@ Ingresos por categoría (gráfico)
 - **Botón X:** limpia el filtro y vuelve a "Resumen General"
 
 Reinicá la app con `r` y probá seleccionando fechas en el Dashboard.
+
+# CONVERSACIÓN 15/07/2026
+
+Actúa como un experto en desarrollo móvil con React Native y Expo. Estoy teniendo un problema de 'crash' al abrir mi aplicación en un dispositivo Android físico:
+**Contexto:** He logrado compilar exitosamente la app usando EAS Build, el ícono aparece y la app se instala, pero al intentar abrirla se cierra inmediatamente (crash al inicio).
+
+Analicé el stack técnico. El crash al abrir la app en Android tiene **tres causas probables**, ordenadas por probabilidad:
+
+---
+
+### 🔴 Causa #1 (MÁS PROBABLE): Falta el plugin de Reanimated en Babel
+
+`react-native-reanimated` **requiere** un plugin específico en `babel.config.js`. Sin él, la app compila pero crashea al iniciar porque no puede interpretar el código de Reanimated.
+
+Tu `babel.config.js` actual:
+```js
+presets: [
+  ['babel-preset-expo', { jsxImportSource: 'nativewind' }],
+  'nativewind/babel',
+],
+// ⚠️ FALTA: 'react-native-reanimated/plugin'
+```
+
+**Solución:** Agregar `'react-native-reanimated/plugin'` al final de la lista de plugins (es importante que sea **el último plugin**).
+
+---
+
+### 🔴 Causa #2: Producción no tiene `--legacy-peer-deps`
+
+En `eas.json`, el perfil `production` no tiene `NPM_CONFIG_LEGACY_PEER_DEPS: "true"`, mientras que `preview` sí. Si el servidor de EAS resuelve dependencias diferente al local, puede instalar versiones incompatibles.
+
+**Solución:** Agregar la variable de entorno al perfil `production`.
+
+---
+
+### 🟡 Causa #3: Firebase Auth sin AsyncStorage nativo
+
+El warning de Firebase Auth que vimos antes (`AsyncStorage no provisto`) puede ser un crash en producción cuando la persistencia falla.
+
+**Solución:** Ya lo habíamos intentado, pero podríamos probar un enfoque más simple.
+
+---
+
+### Plan de acción
+
+| Archivo | Cambio |
+|---------|--------|
+| `babel.config.js` | Agregar `'react-native-reanimated/plugin'` al final |
+| `eas.json` | Agregar `NPM_CONFIG_LEGACY_PEER_DEPS: "true"` en producción |
+
+Después de esos cambios → re-build con `eas build --platform android --profile production`.
+
+**¿Querés que lo haga?** Pasame a **Act Mode** y lo resuelvo.
+
+hacé lo relacionado a la Causa #1. El tema de Producción (causa #2) con --legace-peer-deps no aplica porque voy a subir la aplicación como preview. Para production necesito pagar en dólares. Por otro lado, la causa #3 ya está resuelta.
+
+✅ **Plugin de Reanimated agregado** en `babel.config.js`.
+
+Este plugin es **obligatorio** para que `react-native-reanimated` funcione en producción. Sin él, la app compila el APK pero crashea al abrirse porque no puede interpretar el código de Reanimated en tiempo de ejecución.
+
+Importante: el plugin debe ir **siempre al final** de la lista de plugins, que es justo donde lo puse.
+
+### Próximo paso
+
+Reconstruí la app con:
+
+```bash
+eas build --platform android --profile preview
+```
+
+Eso debería resolver el crash de apertura. Si vuelve a fallar, pegame el log y lo revisamos.
+
+## Causa del crash confirmada
+
+**`react-native-gesture-handler` v2.28.0 + New Architecture** requiere `GestureHandlerRootView` en el root del árbol de componentes para llamar a `RNGestureHandlerModule.install()`. Sin él, Fabric nunca inicializa el módulo nativo → crash inmediato al abrir.
+
+---
+
+## Fix 1 — Imports en _layout.tsx
+
+Reemplazá:
+
+```typescript
+// ANTES
+import { useEffect } from 'react'
+import { useSegments, useRouter } from 'expo-router'
+// sin GestureHandlerRootView
+
+// DESPUÉS
+import { useEffect, useRef } from 'react'
+import { useRouter } from 'expo-router'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
+```
+
+---
+
+## Fix 2 — `useEffect` y su dependency array
+
+```typescript
+// ANTES — segments en el array causa que el efecto se re-ejecute en cada navegación
+}, [segments, router, setUserId])
+
+// DESPUÉS — array vacío, onAuthStateChanged ya dispara con el estado inicial
+const splashHidden = useRef(false)
+
+useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      setUserId(user.uid)
+      router.replace('/(tabs)')
+    } else {
+      setUserId(null)
+      router.replace('/(auth)/login')
+    }
+    if (!splashHidden.current) {
+      splashHidden.current = true
+      await SplashScreen.hideAsync()
+    }
+  })
+  return () => unsubscribe()
+}, [])  // ← array vacío
+```
+
+---
+
+## Fix 3 — Wrapper en el `return`
+
+```tsx
+// ANTES
+return (
+  <>
+    <Stack>
+      ...
+    </Stack>
+    <StatusBar style="dark" />
+  </>
+)
+
+// DESPUÉS
+return (
+  <GestureHandlerRootView style={{ flex: 1 }}>
+    <Stack>
+      ...
+    </Stack>
+    <StatusBar style="dark" />
+  </GestureHandlerRootView>
+)
+```
+
+---
+
+Aplicá los tres cambios.
+
+✅ **Los tres cambios aplicados en `app/_layout.tsx`:**
+
+### Fix 1 — Imports
+- Agregado `useRef` y `GestureHandlerRootView`
+- Eliminado `useSegments` (ya no se necesita)
+
+### Fix 2 — useEffect simplificado
+- `segments` eliminado del dependency array → ahora es `[]` (se ejecuta una sola vez)
+- Agregado `splashHidden` con `useRef(false)` para ocultar el splash solo una vez
+- La redirección ahora es directa: si hay usuario → `/(tabs)`, si no → `/(auth)/login`
+
+### Fix 3 — Wrapper GestureHandlerRootView
+- Todo el contenido envuelto en `<GestureHandlerRootView style={{ flex: 1 }}>`
+- Esto evita el crash de `react-native-gesture-handler` en la New Architecture
+
+### Próximo paso
+Reconstruí con:
+
+```bash
+eas build --platform android --profile preview
+```
+
+La app ya no debería crashear al abrirse.
+
+ya intenté todo esto y nada ... qué puede ser?
+
+He analizado TODO el código del proyecto en detalle. Efectivamente, después de agotar Reanimated + GestureHandler, hay causas nuevas que no se han explorado.
+
+## 🚨 Diagnóstico: 3 causas NO exploradas
+
+### 🔴 Causa #4 (MÁS PROBABLE): `newArchEnabled: true` + dependencias inestables
+
+Tu `app.json` tiene `"newArchEnabled": true`. La New Architecture de RN 0.81 requiere que TODAS las librerías nativas tengan Turbo Modules estables. Con Expo SDK 54 y estas versiones:
+
+- `react-native-gesture-handler ~2.28.0` — soporte experimental
+- `react-native-reanimated ~4.1.1` — estable pero puede tener edge cases
+- `react-native-screens ~4.16.0`, `safe-area-context ~5.6.0` — igual
+
+**Solución:** `"newArchEnabled": false` en `app.json`.
+
+### 🔴 Causa #5 (MUY PROBABLE): `react-native-worklets` duplicado
+
+Tienes en `package.json`:
+```json
+"react-native-worklets": "^0.8.3"
+```
+
+**`react-native-reanimated` ~4.1.1 YA incluye su propio sistema de worklets.** Tenerlo como dependencia separada causa:
+- Duplicación de módulos nativos
+- Conflictos de símbolos en linkeo
+- Crash al inicializar Reanimated
+
+**Solución:** Eliminar `react-native-worklets` de `package.json`.
+
+### 🟡 Causa #6 (MEDIA): `require('firebase/auth')` en producción
+
+```ts
+const { getReactNativePersistence } = require('firebase/auth')
+```
+
+Este `require()` puede devolver `undefined` en producción porque Metro tree-shakea los exports de Firebase v11.
+
+---
+
+## Plan de acción
+
+| # | Cambio | Archivo | Explicación |
+|---|--------|---------|-------------|
+| 1 | `"newArchEnabled": false` | `app.json` | Desactivar New Architecture |
+| 2 | Eliminar `"react-native-worklets"` | `package.json` | Evitar conflicto con Reanimated |
+| 3 | Simplificar persistencia de Firebase Auth | `lib/firebase.ts` | Evitar `require()` problemático |
+| 4 | Agregar `react-native-screens` a plugins | `app.json` | Registro explícito |
+| 5 | Re-build: `eas build --platform android --profile preview` | | |
+
+**Mi recomendación:** Hacer #1 + #2 primero (son los cambios con mayor probabilidad de éxito), probar, y si no funciona avanzar con #3 y #4.
+
+**¿Te parece bien este plan?** Si estás de acuerdo, togglame a **Act Mode** para implementarlo.
+
+Se implementaron 3 cambios críticos para resolver el crash al abrir la app en Android:
+
+1. **Deshabilitar New Architecture** (`app.json` → `"newArchEnabled": false`): La New Architecture de RN 0.81 requiere que todas las librerías nativas tengan Turbo Modules estables. `react-native-gesture-handler ~2.28.0` tiene soporte experimental que puede causar crash.
+
+2. **Eliminar `react-native-worklets`** de `package.json`: `react-native-reanimated ~4.1.1` ya incluye su propio sistema de worklets. Tenerlo como dependencia separada causa duplicación de módulos nativos y crash al inicializar Reanimated.
+
+3. **Agregar `react-native-screens` y `react-native-safe-area-context` a plugins** en `app.json`: registro explícito requerido en algunas configuraciones.
+
+Próximo paso: hacer rebuild con `eas build --platform android --profile preview` y probar.
+
+1) No se permite la propiedad newArchEnabled.
+
+2) Package "react-native-screens" does not contain a valid config plugin.
+Learn more: https://docs.expo.dev/guides/config-plugins/#creating-a-plugin
+
+Unexpected token 'typeof'
+
+3) Package "react-native-safe-area-context" does not contain a valid config plugin.
+Learn more: https://docs.expo.dev/guides/config-plugins/#creating-a-plugin
+
+Unexpected token 'typeof'
+
+4) No se encuentra el nombre "process". ¿Necesita instalar definiciones de tipo para el nodo? Pruebe "npm i --save-dev @types/node" y, a continuación, agregue "node" al campo de tipos del archivo tsconfig.ts(2591)
+⚠ Error (TS2591)  |  |  | 
+
+No se encuentra el nombre "process". ¿Necesita instalar definiciones de tipo para el nodo? Pruebe "npm i --save-dev @types/node" y, a continuación, agregue "node" al campo de tipos del archivo tsconfig.
+
+app.json	Eliminar "newArchEnabled": false
+
+pero no habías recomendado 1. **Deshabilitar New Architecture** (`app.json` → `"newArchEnabled": false`): La New Architecture de RN 0.81 requiere que todas las librerías nativas tengan Turbo Modules estables. `react-native-gesture-handler ~2.28.0` tiene soporte experimental que puede causar crash.
+
+---
+
+¡LO ATRAPAMOS! 🎉 Al fin logramos ver qué está matando a la aplicación. Todo el esfuerzo de configurar el ADB acaba de dar sus frutos.
+
+Mira exactamente la tercera línea de tu log:
+
+> `com.facebook.react.common.JavascriptException: FirebaseError: Firebase: Error (auth/invalid-api-key)`
+
+### 🔴 El Diagnóstico definitivo
+
+La aplicación no se está cerrando por culpa de Reanimated, ni por la nueva arquitectura, ni por configuraciones nativas extrañas. **Se está cerrando porque Firebase está explotando al no encontrar su API Key (o al recibir una clave vacía/inválida).**
+
+Al fallar la inicialización de Firebase en el archivo principal, la app entera sufre un crash inmediato.
+
+### 🕵️‍♂️ ¿Por qué funcionaba localmente pero en el APK no?
+
+Si tuvieras la API Key mal escrita, tampoco te funcionaría en Expo Go. El problema aquí es cómo se envían las variables a la nube.
+
+1. Seguramente tienes tus credenciales de Firebase en un archivo llamado **`.env`** usando variables que empiezan con `EXPO_PUBLIC_...`.
+2. Por buenas prácticas de seguridad, el archivo `.env` está dentro de tu `.gitignore`. Esto significa que **Git lo ignora y no lo sube al repositorio**.
+3. Cuando ejecutas `eas build`, Expo empaqueta tu código y lo manda a sus servidores para construir el APK. Pero como Git ignoró el `.env`, **ese archivo nunca viajó a la nube**.
+4. El servidor de Expo compila la app, busca `process.env.EXPO_PUBLIC_FIREBASE_API_KEY`, encuentra `undefined`, y Firebase explota al arrancar.
+
+---
+
+### 🛠️ La Solución (Paso a paso)
+
+Para que el servidor de Expo (EAS) tenga acceso a esas variables al momento de compilar tu app, debes declararlas explícitamente en tu archivo `eas.json`. (No te preocupes por la seguridad, las claves de Firebase están diseñadas para ser públicas en el cliente).
+
+Abre tu archivo **`eas.json`** y agrega un bloque `"env"` dentro del perfil `"preview"`. Debe quedarte algo exactamente así:
+
+```json
+{
+  "cli": {
+    "version": ">= 7.0.0"
+  },
+  "build": {
+    "preview": {
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyTuClaveRealDeFirebase12345678",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "tu-proyecto.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "tu-proyecto",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "tu-proyecto.appspot.com",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "1234567890",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:1234567890:web:abcdef123456"
+      }
+    },
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyTuClaveRealDeFirebase12345678",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "tu-proyecto.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "tu-proyecto"
+      }
+    }
+  }
+}
+
+```
+
+**Pasos finales:**
+
+1. Rellena ese bloque `"env"` con las claves exactas que tienes en tu archivo `.env` local.
+2. Guarda el archivo `eas.json`.
+3. Sube los cambios con git (`git add .`, `git commit...`, `git push`).
+4. Lanza tu build por última vez con `eas build --platform android --profile preview`.
+
+Esta vez, cuando el APK se instale, Firebase encontrará sus llaves, inicializará correctamente y la aplicación abrirá sin cerrarse.
+
+estaba fallando eso. hay que cambiar el archivo eas.json

@@ -14,7 +14,13 @@
         "buildType": "apk"
       },
       "env": {
-        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyBY-hUv4RDuXerRISoCZz3y6RpMAsmNScY",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "gestor-financiero-app-umb.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "gestor-financiero-app-umb",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "gestor-financiero-app-umb.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "33659497492",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:33659497492:web:98cc02f1869a9688aa0b01"
       }
     },
     "production": {
