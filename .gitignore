@@ -9,6 +9,7 @@ npm-debug.*
 *.mobileprovision
 *.orig.*
 web-build/
+funcionalidadesProximas.md
 
 # Variables de entorno — nunca subir al repositorio
 .env
