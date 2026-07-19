@@ -6,6 +6,7 @@
 // es del componente TransactionForm).
 
 import React from 'react'
+import { Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { TransactionForm } from '@/components/transactions/TransactionForm'
@@ -19,6 +20,7 @@ export default function NewTransactionScreen() {
   const handleSubmit = async (data: TransactionFormData) => {
     if (!userId) return
     await createTransaction(userId, data)
+    Alert.alert('Éxito', 'Movimiento registrado exitosamente.')
     router.back()
   }
 

@@ -92,6 +92,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
       })
       setNewLabel('')
       setNewColor('#FF0000')
+      Alert.alert('Éxito', 'Categoría creada exitosamente.')
     } catch {
       Alert.alert('Error', 'No se pudo crear la categoría.')
     } finally {
@@ -125,6 +126,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
       setEditingId(null)
       setEditLabel('')
       setEditColor('')
+      Alert.alert('Éxito', 'Categoría editada exitosamente.')
     } catch {
       Alert.alert('Error', 'No se pudo actualizar la categoría.')
     } finally {
@@ -151,6 +153,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
           onPress: async () => {
             try {
               await deleteCategory(userId, categoryId)
+              Alert.alert('Éxito', 'Categoría eliminada exitosamente.')
             } catch {
               Alert.alert('Error', 'No se pudo eliminar la categoría.')
             }

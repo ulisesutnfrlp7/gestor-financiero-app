@@ -28,6 +28,7 @@ export default function EditTransactionScreen() {
   const handleSubmit = async (data: TransactionFormData) => {
     if (!id) return
     await updateTransaction(id, data)
+    Alert.alert('Éxito', 'Movimiento editado exitosamente.')
     router.back()
   }
 
@@ -43,6 +44,7 @@ export default function EditTransactionScreen() {
           onPress: async () => {
             if (!id) return
             await deleteTransaction(id)
+            Alert.alert('Éxito', 'Movimiento eliminado exitosamente.')
             router.back()
           },
         },

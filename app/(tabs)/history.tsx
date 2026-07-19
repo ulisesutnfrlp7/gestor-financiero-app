@@ -52,7 +52,10 @@ export default function HistoryScreen() {
         {
           text: 'Eliminar',
           style: 'destructive',
-          onPress: () => deleteTransaction(id),
+          onPress: async () => {
+            await deleteTransaction(id)
+            Alert.alert('Éxito', 'Movimiento eliminado exitosamente.')
+          },
         },
       ]
     )
@@ -77,7 +80,7 @@ export default function HistoryScreen() {
     <SafeAreaView className="flex-1 bg-gray-50">
       {/* Encabezado */}
       <View className="px-5 pt-6 pb-2">
-        <Text className="text-2xl font-bold text-gray-900">Historial</Text>
+        <Text className="text-2xl font-bold text-gray-900">Historial de Movimientos</Text>
       </View>
 
       {/* Filtros */}
