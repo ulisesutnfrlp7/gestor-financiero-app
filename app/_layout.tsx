@@ -18,6 +18,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { auth } from '@/lib/firebase'
 import { useFinanceStore } from '@/store/useFinanceStore'
 import { useTransactions } from '@/hooks/useTransactions'
+import { useCategories } from '@/hooks/useCategories'
+import { seedDefaultCategories } from '@/services/categories.service'
 import '../global.css'
 
 // Mantiene el splash screen visible hasta que completemos la inicialización
@@ -28,13 +30,16 @@ export default function RootLayout() {
   const setUserId = useFinanceStore((state) => state.setUserId)
   const splashHidden = useRef(false)
 
-  // Suscripción Firestore: activa una vez que userId esté seteado
+  // Suscripciones Firestore: activas una vez que userId esté seteado
   useTransactions()
+  useCategories()
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setUserId(user.uid)
+        // Precargar categorías default si es la primera vez
+        await seedDefaultCategories(user.uid)
         router.replace('/(tabs)')
       } else {
         setUserId(null)

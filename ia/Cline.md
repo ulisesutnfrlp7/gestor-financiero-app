@@ -2517,3 +2517,784 @@ eas build --platform android --profile production
 - Si alguien clona tu repo, no ve ninguna credencial
 
 ¿Te parece bien? Toggleame a **Act Mode** y ejecuto los pasos 2 y 3 (limpiar `eas.json` y hacer commit).
+
+La Splash Screen (o pantalla de inicio/bienvenida) es la primera pantalla que ve un usuario al abrir una aplicación móvil, justo antes de que cargue la interfaz principal... quisiera agregar la imagen splashscreen.png que está en la carpeta assets...
+
+Ya tenés la imagen `splashscreen.png` en `assets/` y el código en `_layout.tsx` ya maneja la lógica de mostrar/ocultar el splash screen (`SplashScreen.preventAutoHideAsync()` / `hideAsync()`). Solo falta **configurar la imagen en `app.json`**.
+
+### Cambio necesario en `app.json`
+
+Agregar la propiedad `"splash"` con la referencia a la imagen:
+
+```json
+"splash": {
+  "image": "./assets/splashscreen.png",
+  "resizeMode": "contain",
+  "backgroundColor": "#4F46E5"
+}
+```
+
+**Explicación de cada campo:**
+| Campo | Valor | Qué hace |
+|-------|-------|----------|
+| `image` | `"./assets/splashscreen.png"` | La imagen que se muestra |
+| `resizeMode` | `"contain"` | Escala la imagen para que entre completa sin recortarse |
+| `backgroundColor` | `"#4F46E5"` | Color de fondo (el indigo de tu app) mientras carga la imagen |
+
+### ¿ResizeMode: contain o cover?
+
+- **`contain`** → muestra la imagen completa centrada, con barras del color de fondo si la imagen no cubre toda la pantalla
+- **`cover`** → la imagen cubre toda la pantalla, pero puede recortarse
+
+Para un splash profesional, recomiendo `"contain"` con el color primario de tu app de fondo.
+
+---
+
+### Resumen de pasos:
+1. **Agregar `"splash"` en `app.json`** (con `image`, `resizeMode`, `backgroundColor`)
+2. **Ya está** — el código en `_layout.tsx` ya tiene toda la lógica para ocultarlo cuando termine de cargar
+
+¿Te parece? Toggleame a **Act Mode** y lo implemento.
+
+Planeemos esta nueva funcionalidad:
+
+| **Búsqueda en Historial** | Buscar movimientos por descripción |
+
+Buenas. Ya revisé todo el código necesario. El feature de **búsqueda por descripción** es bastante directo porque:
+
+1. ✅ Ya tenés el campo `description` en el tipo `Transaction`
+2. ✅ Ya tenés filtrado client-side con `useMemo` en `history.tsx`
+3. ✅ Ya tenés `TransactionFilters.tsx` con la UI de filtros
+
+Solo hay que agregar un **input de búsqueda** que filtre por descripción.
+
+---
+
+## Plan de implementación
+
+### 1. `components/transactions/TransactionFilters.tsx`
+Agregar un `searchQuery` al interface `Filters`:
+```ts
+export interface Filters {
+  type: TransactionType | 'all'
+  category: string
+  dateFrom: string
+  dateTo: string
+  searchQuery: string  // ← NUEVO
+}
+```
+
+Agregar un `TextInput` al principio del componente para buscar:
+```tsx
+<TextInput
+  placeholder="Buscar por descripción..."
+  value={filters.searchQuery}
+  onChangeText={(text) => setFilter({ searchQuery: text })}
+  className="..."
+/>
+```
+
+### 2. `app/(tabs)/history.tsx`
+Agregar el filtro por descripción en el `useMemo`:
+```ts
+if (filters.searchQuery) {
+  const q = filters.searchQuery.toLowerCase()
+  if (!t.description.toLowerCase().includes(q)) return false
+}
+```
+
+Actualizar el estado inicial de `filters`:
+```ts
+const [filters, setFilters] = useState<Filters>({
+  type: 'all',
+  category: '',
+  dateFrom: '',
+  dateTo: '',
+  searchQuery: '',  // ← NUEVO
+})
+```
+
+### Resumen de cambios
+
+| Archivo | Cambio |
+|---------|--------|
+| `TransactionFilters.tsx` | Agregar `searchQuery` a `Filters` + `TextInput` en la UI |
+| `history.tsx` | Agregar filtro por descripción en `useMemo` + estado inicial |
+
+**Sin cambios en servicios ni tipos** — todo es client-side.
+
+¿Te parece? Toggleame a **Act Mode** y lo implemento.
+
+Planeemos esta nueva funcionalidad:
+
+| **Categorías personalizadas** | El usuario puede crear/editar/eliminar sus propias categorías |
+
+Ya revisé todo el código. Buenas noticias: tenés una base sólida para agregar categorías personalizadas. Acá va el plan.
+
+---
+
+## 📋 Diagnóstico del código actual
+
+| Aspecto | Estado actual |
+|---------|---------------|
+| Categorías | Hardcodeadas en `constants/categories.ts` (3 ingreso + 7 gasto) |
+| Store de Zustand | Solo tiene `transactions`, no categorías |
+| Servicios | `transactions.service.ts` tiene CRUD, no hay servicio de categorías |
+| Firestore | Solo tiene colecciones `transactions/` y `users/`, no `categories/` |
+| UI (Form) | `TransactionForm.tsx` usa `getCategoriesByType()` de constantes |
+| UI (Filters) | `TransactionFilters.tsx` usa `getCategoriesByType()` de constantes |
+
+---
+
+## 🏗️ Plan de implementación (6 fases)
+
+### Fase 1 — Tipos y constantes
+
+| Archivo | Cambio |
+|---------|--------|
+| `types/index.ts` | Agregar `CustomCategory` (id, label, type, userId, createdAt) |
+| `constants/categories.ts` | Mantener como **categorías default** que se precargan al registrar usuario |
+
+### Fase 2 — Servicio Firestore
+
+**Nuevo archivo:** `services/categories.service.ts`
+
+| Función | Descripción |
+|---------|-------------|
+| `subscribeToCategories(userId, cb, err)` | Listener en tiempo real a `/users/{userId}/categories/` |
+| `createCategory(userId, data)` | Crear categoría custom |
+| `updateCategory(id, data)` | Editar nombre de categoría |
+| `deleteCategory(id)` | Eliminar categoría (solo si no tiene transacciones asociadas) |
+| `seedDefaultCategories(userId)` | Precargar las 10 categorías default al registrarse |
+
+### Fase 3 — Store
+
+**`store/useFinanceStore.ts`** → agregar:
+```ts
+categories: CustomCategory[]
+setCategories: (categories: CustomCategory[]) => void
+```
+
+### Fase 4 — Hook
+
+**Nuevo archivo:** `hooks/useCategories.ts` → similar a `useTransactions.ts`, suscribe al listener y sincroniza con el store.
+
+**`app/_layout.tsx`** → llamar a `useCategories()` junto a `useTransactions()`.
+
+### Fase 5 — UI de gestión de categorías
+
+**Nuevo archivo:** `components/categories/CategoryManager.tsx`
+
+Componente modal/sheet con:
+- Lista de categorías actuales (separadas por ingreso/gasto)
+- Input para agregar nueva categoría
+- Botón editar (lápiz) y eliminar (tacho) en cada ítem
+- Confirmación al eliminar: "¿Eliminar categoría? Los movimientos existentes no se borrarán, pero quedarán sin categoría."
+
+### Fase 6 — Integración en formularios
+
+| Archivo | Cambio |
+|---------|--------|
+| `TransactionForm.tsx` | En vez de `getCategoriesByType()`, usar `categories` del store + al final mostrar "➕ Personalizar" que abre el `CategoryManager` |
+| `TransactionFilters.tsx` | Ídem, pasar a usar categorías del store |
+
+### Navegación
+
+Para acceder al `CategoryManager`, propongo agregar un ícono de **engranaje ⚙️** al lado del título "Historial" que abra la gestión. O si preferís, una opción en el dashboard.
+
+---
+
+### Resumen de archivos
+
+| Acción | Archivo |
+|--------|---------|
+| 🆕 Crear | `services/categories.service.ts` |
+| 🆕 Crear | `hooks/useCategories.ts` |
+| 🆕 Crear | `components/categories/CategoryManager.tsx` |
+| ✏️ Modificar | `types/index.ts` |
+| ✏️ Modificar | `store/useFinanceStore.ts` |
+| ✏️ Modificar | `app/_layout.tsx` |
+| ✏️ Modificar | `components/transactions/TransactionForm.tsx` |
+| ✏️ Modificar | `components/transactions/TransactionFilters.tsx` |
+| ✏️ Modificar | `firestore.rules` |
+
+¿Te parece bien el plan? ¿Prefieres que el acceso a la gestión de categorías sea desde un ícono en el historial, desde el dashboard, o desde el propio formulario de transacción? Decime y pasame a **Act Mode** para implementarlo.
+
+Adelante. Me gusta la idea de agregar un ícono de engranaje al lado del título Historial que abra la gestión.
+
+✅ **Feature "Categorías Personalizadas" implementado completamente.** Resumen de todos los cambios:
+
+### Archivos creados (3)
+| Archivo | Propósito |
+|---------|-----------|
+| `services/categories.service.ts` | CRUD de categorías en Firestore (`/users/{userId}/categories/`) + `seedDefaultCategories()` |
+| `hooks/useCategories.ts` | Sincroniza categorías de Firestore con Zustand en tiempo real |
+| `components/categories/CategoryManager.tsx` | Modal con UI para crear/editar/eliminar categorías |
+
+### Archivos modificados (6)
+| Archivo | Cambio |
+|---------|--------|
+| `types/index.ts` | Agregado `CustomCategory` interface |
+| `store/useFinanceStore.ts` | Agregado `categories[]` al estado + `selectCategoriesByType` selector |
+| `app/_layout.tsx` | Agrega `useCategories()` + `seedDefaultCategories()` al autenticar |
+| `components/transactions/TransactionForm.tsx` | Usa categorías del store en vez de constantes |
+| `components/transactions/TransactionFilters.tsx` | Usa categorías del store en vez de constantes |
+| `app/(tabs)/history.tsx` | Agrega ícono ⚙️ al lado del título "Historial" que abre el `CategoryManager` |
+| `firestore.rules` | Agrega regla para la subcolección `/users/{userId}/categories/{id}` |
+
+### Cómo funciona
+1. **Al registrarse**, se precargan las 10 categorías default en Firestore
+2. **En el historial**, un ícono de engranaje ⚙️ abre el modal de gestión
+3. **El modal** permite crear categorías (con selector ingreso/gasto), editar nombre y eliminar
+4. **El formulario de transacción** y los filtros usan las categorías desde el store (sincronizadas en tiempo real)
+5. **Las reglas de Firestore** protegen que cada usuario solo vea/edite sus propias categorías
+
+ERROR  The result of getSnapshot should be cached to avoid an infinite loop
+
+Call Stack
+  construct (<native>)
+  apply (<native>)
+  _construct (node_modules\@babel\runtime\helpers\construct.js)
+  Wrapper (node_modules\@babel\runtime\helpers\wrapNativeSuper.js)
+  construct (<native>)
+  _callSuper (node_modules\@babel\runtime\helpers\callSuper.js)
+  NamelessError (node_modules\@expo\metro-runtime\src\metroServerLogs.native.ts)
+  captureCurrentStack (node_modules\@expo\metro-runtime\src\metroServerLogs.native.ts)
+  HMRClient.log (node_modules\@expo\metro-runtime\src\metroServerLogs.native.ts)
+  console.level (node_modules\react-native\Libraries\Core\setUpDeveloperTools.js)
+  mountSyncExternalStore (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  HooksDispatcherOnMountInDEV.useSyncExternalStore (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  exports.useSyncExternalStore (node_modules\react\cjs\react.development.js)
+  useStore (node_modules\zustand\react.js)
+  useBoundStore (node_modules\zustand\react.js)
+  TransactionFilters (components\transactions\TransactionFilters.tsx)
+  callComponent.reactStackBottomFrame (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  renderWithHooks (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  updateFunctionComponent (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  beginWork (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  runWithFiberInDEV (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performUnitOfWork (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  workLoopSync (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  renderRootSync (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performWorkOnRoot (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performSyncWorkOnRoot (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  flushSyncWorkAcrossRoots_impl (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  processRootScheduleInMicrotask (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  scheduleMicrotask$argument_0 (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+
+Call Stack
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  HistoryScreen (app\(tabs)\history.tsx)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  BaseRoute (node_modules\expo-router\build\useScreens.js)
+  SceneView (node_modules\@react-navigation\core\lib\module\SceneView.js)
+  render (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  routes.reduce$argument_0 (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  reduce (<native>)
+  useDescriptors (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  useNavigationBuilder (node_modules\@react-navigation\core\lib\module\useNavigationBuilder.js)
+  BottomTabNavigator (node_modules\@react-navigation\bottom-tabs\lib\module\navigators\createBottomTabNavigator.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  <anonymous> (node_modules\expo-router\build\layouts\withLayoutContext.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  Object.assign$argument_0 (node_modules\expo-router\build\layouts\TabsClient.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  TabLayout (app\(tabs)\_layout.tsx)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  BaseRoute (node_modules\expo-router\build\useScreens.js)
+  SceneView (node_modules\@react-navigation\core\lib\module\SceneView.js)
+  render (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  routes.reduce$argument_0 (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  reduce (<native>)
+  useDescriptors (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  useNavigationBuilder (node_modules\@react-navigation\core\lib\module\useNavigationBuilder.js)
+  NativeStackNavigator (node_modules\expo-router\build\fork\native-stack\createNativeStackNavigator.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  <anonymous> (node_modules\expo-router\build\layouts\withLayoutContext.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  Object.assign$argument_0 (node_modules\expo-router\build\layouts\StackClient.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  RootLayout (app\_layout.tsx)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  BaseRoute (node_modules\expo-router\build\useScreens.js)
+  SceneView (node_modules\@react-navigation\core\lib\module\SceneView.js)
+  render (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  routes.reduce$argument_0 (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  reduce (<native>)
+  useDescriptors (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  useNavigationBuilder (node_modules\@react-navigation\core\lib\module\useNavigationBuilder.js)
+  Content (node_modules\expo-router\build\ExpoRoot.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  ContextNavigator (node_modules\expo-router\build\ExpoRoot.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  ExpoRoot (node_modules\expo-router\build\ExpoRoot.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  App (node_modules\expo-router\build\qualified-entry.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  WithDevTools (node_modules\expo\src\launch\withDevTools.tsx)
+ ERROR  [Error: Maximum update depth exceeded. This can happen when a component repeatedly calls setState inside componentWillUpdate or componentDidUpdate. React limits the number of nested updates to prevent infinite loops.]
+
+Call Stack
+  getRootForUpdatedFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  enqueueConcurrentRenderForLane (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  forceStoreRerender (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  updateStoreInstance (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  callCreate.reactStackBottomFrame (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  runWithFiberInDEV (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitHookEffectListMount (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitHookPassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  recursivelyTraversePassiveMountEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitPassiveMountOnFiber (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  flushPassiveEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  flushPendingEffects (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  flushSpawnedWork (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitRoot (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  commitRootWhenReady (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performWorkOnRoot (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performSyncWorkOnRoot (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  flushSyncWorkAcrossRoots_impl (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  processRootScheduleInMicrotask (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  scheduleMicrotask$argument_0 (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+
+Call Stack
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  HistoryScreen (app\(tabs)\history.tsx)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  BaseRoute (node_modules\expo-router\build\useScreens.js)
+  SceneView (node_modules\@react-navigation\core\lib\module\SceneView.js)
+  render (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  routes.reduce$argument_0 (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  reduce (<native>)
+  useDescriptors (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  useNavigationBuilder (node_modules\@react-navigation\core\lib\module\useNavigationBuilder.js)
+  BottomTabNavigator (node_modules\@react-navigation\bottom-tabs\lib\module\navigators\createBottomTabNavigator.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  <anonymous> (node_modules\expo-router\build\layouts\withLayoutContext.js)
+  call (<native>)
+  apply (<native>)
+
+El problema está identificado: **`selectCategoriesByType` crea una nueva función en cada render**, lo que causa un loop infinito con Zustand/useSyncExternalStore.
+
+El selector actual:
+```ts
+export const selectCategoriesByType = (type: 'income' | 'expense') =>
+  (state: FinanceState): CustomCategory[] =>
+    state.categories.filter((c) => c.type === type)
+```
+
+Cuando se usa así `useFinanceStore(selectCategoriesByType(selectedType))`, en cada render se genera una **nueva función**, Zustand detecta que el selector cambió, se vuelve a suscribir, dispara otro render → **loop infinito**.
+
+### Solución
+
+Hay que cambiar el approach: en vez de un selector por tipo, usar un selector que devuelva **todas las categorías** y hacer el filtrado en el componente con `useMemo` (como ya se hace con las transacciones).
+
+### Archivos a modificar
+
+1. **`store/useFinanceStore.ts`** — Eliminar `selectCategoriesByType` y agregar `selectAllCategories`
+2. **`components/transactions/TransactionFilters.tsx`** — Usar `selectAllCategories` + `useMemo`
+3. **`components/transactions/TransactionForm.tsx`** — Ídem
+
+Toggleame a **Act Mode** y lo resuelvo.
+
+✅ **Loop infinito corregido.** El problema era que `selectCategoriesByType` retornaba una **nueva función** en cada render, Zustand detectaba que el selector cambiaba y disparaba otro render → ciclo infinito.
+
+### Cambios realizados
+
+| Archivo | Cambio |
+|---------|--------|
+| `store/useFinanceStore.ts` | `selectCategoriesByType` reemplazado por `selectAllCategories` (selector estable) |
+| `components/transactions/TransactionForm.tsx` | Usa `selectAllCategories` + `useMemo` para filtrar por tipo |
+| `components/transactions/TransactionFilters.tsx` | Usa `selectAllCategories` + `useMemo` para filtrar por tipo |
+
+### Por qué funciona ahora
+
+- `selectAllCategories` es una **referencia estable** (no se recrea en cada render)
+- `useFinanceStore(selectAllCategories)` solo causa re-render cuando `categories[]` cambia realmente
+- El filtrado `allCategories.filter(c => c.type === selectedType)` está envuelto en `useMemo` con `[allCategories, selectedType]` como dependencias
+
+ ERROR  [TypeError: 0, _storeUseFinanceStore.selectCategoriesByType is not a function (it is undefined)]
+
+Call Stack
+  CategoryManager (components\categories\CategoryManager.tsx)
+  callComponent.reactStackBottomFrame (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  renderWithHooks (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  updateFunctionComponent (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  beginWork (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  runWithFiberInDEV (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performUnitOfWork (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  workLoopSync (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  renderRootSync (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performWorkOnRoot (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performSyncWorkOnRoot (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  flushSyncWorkAcrossRoots_impl (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  processRootScheduleInMicrotask (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  scheduleMicrotask$argument_0 (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+
+Call Stack
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  HistoryScreen (app\(tabs)\history.tsx)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  BaseRoute (node_modules\expo-router\build\useScreens.js)
+  SceneView (node_modules\@react-navigation\core\lib\module\SceneView.js)
+  render (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  routes.reduce$argument_0 (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  reduce (<native>)
+  useDescriptors (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  useNavigationBuilder (node_modules\@react-navigation\core\lib\module\useNavigationBuilder.js)
+  BottomTabNavigator (node_modules\@react-navigation\bottom-tabs\lib\module\navigators\createBottomTabNavigator.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  <anonymous> (node_modules\expo-router\build\layouts\withLayoutContext.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  Object.assign$argument_0 (node_modules\expo-router\build\layouts\TabsClient.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  TabLayout (app\(tabs)\_layout.tsx)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  BaseRoute (node_modules\expo-router\build\useScreens.js)
+  SceneView (node_modules\@react-navigation\core\lib\module\SceneView.js)
+  render (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  routes.reduce$argument_0 (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  reduce (<native>)
+  useDescriptors (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  useNavigationBuilder (node_modules\@react-navigation\core\lib\module\useNavigationBuilder.js)
+  NativeStackNavigator (node_modules\expo-router\build\fork\native-stack\createNativeStackNavigator.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  <anonymous> (node_modules\expo-router\build\layouts\withLayoutContext.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  Object.assign$argument_0 (node_modules\expo-router\build\layouts\StackClient.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  RootLayout (app\_layout.tsx)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  BaseRoute (node_modules\expo-router\build\useScreens.js)
+  SceneView (node_modules\@react-navigation\core\lib\module\SceneView.js)
+  render (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  routes.reduce$argument_0 (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  reduce (<native>)
+  useDescriptors (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  useNavigationBuilder (node_modules\@react-navigation\core\lib\module\useNavigationBuilder.js)
+  Content (node_modules\expo-router\build\ExpoRoot.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  ContextNavigator (node_modules\expo-router\build\ExpoRoot.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  ExpoRoot (node_modules\expo-router\build\ExpoRoot.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  App (node_modules\expo-router\build\qualified-entry.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  WithDevTools (node_modules\expo\src\launch\withDevTools.tsx)
+
+El error es claro: `CategoryManager.tsx` está importando `selectCategoriesByType` que ya **no existe** en el store (lo renombré a `selectAllCategories`).
+
+### Fix necesario
+
+**Archivo:** `components/categories/CategoryManager.tsx`
+
+1. Import `selectAllCategories` en vez de `selectCategoriesByType`
+2. Usar `selectAllCategories` + `useMemo` para filtrar por tipo (mismo patrón que en TransactionForm)
+
+```tsx
+// Línea 18: cambiar el import
+import { useFinanceStore, selectAllCategories } from '@/store/useFinanceStore'
+
+// Y en el componente, reemplazar los selectores inline por:
+const allCategories = useFinanceStore(selectAllCategories)
+const incomeCategories = useMemo(() => allCategories.filter(c => c.type === 'income'), [allCategories])
+const expenseCategories = useMemo(() => allCategories.filter(c => c.type === 'expense'), [allCategories])
+```
+
+Toggleame a **Act Mode** y lo resuelvo en un toque.
+
+✅ **Error `selectCategoriesByType is not a function` corregido.**
+
+El `CategoryManager.tsx` estaba importando `selectCategoriesByType` que ya fue reemplazado por `selectAllCategories` en el store.
+
+**Cambios en `components/categories/CategoryManager.tsx`:**
+- Import: `selectCategoriesByType` → `selectAllCategories`
+- Agregado `useMemo` para filtrar income/expense (evita loop infinito)
+- Mismo patrón que `TransactionForm` y `TransactionFilters`
+
+tengo un problema: se muestran los ID de las categorías en lugar de su nombre, tanto en el historial como en los gráficos de torta.
+
+El problema está identificado. Tanto `TransactionItem.tsx` como `CategoryChart.tsx` usan `getCategoryById()` de `constants/categories.ts`, que busca en las categorías **hardcodeadas**. Pero ahora las categorías vienen de Firestore con IDs generados (ej: "abc123def"), entonces `getCategoryById` no encuentra nada y muestra el ID crudo.
+
+### Solución
+
+Reemplazar `getCategoryById` por una búsqueda en el store de Zustand (`selectAllCategories`).
+
+### Archivos a modificar
+
+| Archivo | Cambio |
+|---------|--------|
+| `components/transactions/TransactionItem.tsx` | Usar `useFinanceStore(selectAllCategories)` en vez de `getCategoryById` |
+| `components/dashboard/CategoryChart.tsx` | Usar `useFinanceStore(selectAllCategories)` en vez de `getCategoryById` |
+
+Toggleame a **Act Mode** y lo resuelvo.
+
+✅ **Categorías ahora muestran nombres en lugar de IDs.**
+
+El problema era que `TransactionItem.tsx` y `CategoryChart.tsx` usaban `getCategoryById()` de `constants/categories.ts`, que busca en las categorías **hardcodeadas**. Como ahora las categorías vienen de Firestore con IDs generados (ej: "abc123"), `getCategoryById` no encontraba ninguna coincidencia y mostraba el ID crudo.
+
+### Cambios
+
+| Archivo | Antes | Después |
+|---------|-------|---------|
+| `TransactionItem.tsx` | `getCategoryById(transaction.category)` | `useFinanceStore(selectAllCategories).find(c => c.id === transaction.category)` |
+| `CategoryChart.tsx` | `getCategoryById(categoryId)` | `allCategories.find(c => c.id === categoryId)` |
+
+Ambos componentes ahora buscan la categoría en el store de Zustand, que se sincroniza en tiempo real con Firestore, por lo que siempre encuentran el `label` correcto incluso para categorías personalizadas.
+
+Paso una serie de cosas a modificar:
+
+* Colores de los gráficos de tortas: no sé que podría hacerse, pero se necesitan distintos colores para las distintas categorias: obviamente, no se sabe cuántas puede llegar a agregar un usuario, pero tendría que haber una buena diversidad. No sé cómo podría manejarse.
+
+* Cuando se borra la categoría y hay movimientos que pertenecen a esa categoría, deben borrarse también los movimientos y, por lo tanto, que el mensaje de eliminación de categoría sea explícito (advirtiendo que se eliminarán esos movimientos).
+
+* Cuando se va a editar una categoría existente, al presionar en el tick (guardado), se mueve la ruedita en el botón "Agregar" de arriba. no tiene sentido.
+
+* Mejorar la disposición de los botones de "Nueva Categoría". No está bueno que el input del nombre de la categoría esté al lado del botón "Agregar."
+
+Buenas. Analicé los 4 puntos y tengo el plan completo:
+
+---
+
+### 1. 🎨 Colores dinámicos para gráficos
+
+**Problema:** Los colores están hardcodeados por ID (`food → #EF4444`, `salary → #16A34A`). Si el usuario crea una categoría nueva, no tiene color asignado y usa el gris default.
+
+**Solución:** Crear una **paleta de 20+ colores** en `constants/colors.ts` y asignarlos por **índice** (posición de la categoría en la lista), no por ID. Así cualquier categoría nueva recibe un color único automáticamente.
+
+```ts
+// constants/colors.ts
+export const CHART_COLORS = [
+  '#EF4444', '#F97316', '#EAB308', '#22C55E', '#3B82F6',
+  '#A855F7', '#EC4899', '#14B8A6', '#F43F5E', '#8B5CF6',
+  '#0EA5E9', '#84CC16', '#D946EF', '#10B981', '#F59E0B',
+  '#6366F1', '#06B6D4', '#F472B6', '#34D399', '#FB923C',
+]
+```
+
+En `CategoryChart.tsx`: `color: CHART_COLORS[index % CHART_COLORS.length]`
+
+---
+
+### 2. 🗑️ Al borrar categoría, borrar movimientos asociados
+
+**Archivos a modificar:**
+- `services/categories.service.ts` — `deleteCategory()` ahora también borra transacciones con esa categoría
+- `components/categories/CategoryManager.tsx` — Mensaje de alerta actualizado
+
+```ts
+// deleteCategory actualizado
+export const deleteCategory = async (userId: string, categoryId: string) => {
+  // 1. Buscar transacciones con esta categoría
+  const q = query(
+    collection(db, 'transactions'),
+    where('userId', '==', userId),
+    where('category', '==', categoryId)
+  )
+  const snapshot = await getDocs(q)
+  
+  // 2. Borrar en batch
+  const batch = writeBatch(db)
+  snapshot.docs.forEach((docSnap) => batch.delete(docSnap.ref))
+  batch.delete(doc(db, 'users', userId, 'categories', categoryId))
+  await batch.commit()
+}
+```
+
+Mensaje de alerta:
+```
+¿Eliminar "Comida"?
+Se eliminarán también los 5 movimientos asociados a esta categoría.
+```
+
+---
+
+### 3. 🐛 Bug: spinner en botón equivocado al editar
+
+**Problema:** `isSubmitting` es un solo estado compartido entre crear y editar. Al editar, se setea `isSubmitting = true` y el botón "Agregar" muestra el spinner.
+
+**Solución:** Separar en dos estados: `isCreating` y `isEditing`. El botón "Agregar" solo reacciona a `isCreating`.
+
+---
+
+### 4. 📐 Mejorar disposición de "Nueva Categoría"
+
+**Cambio:** Input de nombre ocupa todo el ancho, botón "Agregar" abajo centrado.
+
+```
+┌──────────────────────────┐
+│  Ingreso  │  Gasto       │  ← selectores tipo
+├──────────────────────────┤
+│  Nombre de la categoría  │  ← input ancho completo
+├──────────────────────────┤
+│      [ Agregar ]         │  ← botón centrado abajo
+└──────────────────────────┘
+```
+
+---
+
+### Resumen de archivos a modificar
+
+| Archivo | Cambios |
+|---------|---------|
+| `constants/colors.ts` | Agregar `CHART_COLORS` (array de 20 colores) |
+| `components/dashboard/CategoryChart.tsx` | Usar `CHART_COLORS[index]` en vez de `colors[categoryId]` |
+| `services/categories.service.ts` | `deleteCategory()` ahora borra transacciones asociadas |
+| `components/categories/CategoryManager.tsx` | Mensaje de alerta actualizado + separar `isCreating`/`isEditing` + mejorar layout |
+
+Toggleame a **Act Mode** y lo implemento.
+
+✅ **Los 4 cambios están implementados.** Resumen:
+
+### 1. 🎨 Colores dinámicos para gráficos
+**`constants/colors.ts`** — Agregado `CHART_COLORS` con 20 colores. **`CategoryChart.tsx`** — Asigna colores por índice (`index % CHART_COLORS.length`) en vez de por ID. Cualquier categoría nueva recibe un color único automáticamente.
+
+### 2. 🗑️ Al borrar categoría, se borran movimientos asociados
+**`services/categories.service.ts`** — `deleteCategory()` ahora busca transacciones con esa categoría y las borra en batch junto con la categoría. **`CategoryManager.tsx`** — El mensaje de alerta muestra cuántos movimientos se eliminarán.
+
+### 3. 🐛 Spinner del botón equivocado corregido
+**`CategoryManager.tsx`** — Separado en `isCreating` (para el botón "Agregar Categoría") y `isEditing` (para el checkmark de edición). Cada uno tiene su propio estado y no se afectan entre sí.
+
+### 4. 📐 Layout de "Nueva Categoría" mejorado
+**`CategoryManager.tsx`** — El input ahora ocupa todo el ancho, y el botón "Agregar Categoría" está centrado debajo (en lugar de al lado del input).

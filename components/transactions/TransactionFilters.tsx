@@ -2,12 +2,12 @@
 // Barra de filtros para el historial de movimientos.
 // Filtra por tipo (ingreso/gasto), categoría y rango de fechas.
 
-import React, { useState } from 'react'
-import { View, Text, TouchableOpacity, ScrollView, Platform } from 'react-native'
+import React, { useState, useMemo } from 'react'
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform } from 'react-native'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Ionicons } from '@expo/vector-icons'
 import type { TransactionType } from '@/types'
-import { getCategoriesByType } from '@/constants/categories'
+import { useFinanceStore, selectAllCategories } from '@/store/useFinanceStore'
 import { formatShortDate } from '@/utils/formatters'
 
 export interface Filters {
@@ -15,6 +15,7 @@ export interface Filters {
   category: string
   dateFrom: string
   dateTo: string
+  searchQuery: string
 }
 
 interface TransactionFiltersProps {
@@ -28,7 +29,11 @@ export const TransactionFilters: React.FC<TransactionFiltersProps> = ({
 }) => {
   const [showDateFrom, setShowDateFrom] = useState(false)
   const [showDateTo, setShowDateTo] = useState(false)
-  const categories = getCategoriesByType(filters.type === 'all' ? 'expense' : filters.type)
+  const allCategories = useFinanceStore(selectAllCategories)
+  const categories = useMemo(
+    () => allCategories.filter((c) => c.type === (filters.type === 'all' ? 'expense' : filters.type)),
+    [allCategories, filters.type]
+  )
 
   const setFilter = (partial: Partial<Filters>) => {
     onChange({ ...filters, ...partial })
@@ -45,13 +50,33 @@ export const TransactionFilters: React.FC<TransactionFiltersProps> = ({
   }
 
   const clearFilters = () => {
-    onChange({ type: 'all', category: '', dateFrom: '', dateTo: '' })
+    onChange({ type: 'all', category: '', dateFrom: '', dateTo: '', searchQuery: '' })
   }
 
-  const hasActiveFilters = filters.type !== 'all' || filters.category || filters.dateFrom || filters.dateTo
+  const hasActiveFilters = filters.type !== 'all' || filters.category || filters.dateFrom || filters.dateTo || filters.searchQuery !== ''
 
   return (
     <View className="px-5 pb-3">
+      {/* Búsqueda por descripción */}
+      <View className="flex-row items-center bg-white border border-gray-200 rounded-lg px-3 py-2 mb-4 mt-3">
+        <Ionicons name="search-outline" size={18} color="#9CA3AF" />
+        <TextInput
+          placeholder="Buscar por descripción..."
+          value={filters.searchQuery}
+          onChangeText={(text) => setFilter({ searchQuery: text })}
+          className="flex-1 ml-2 text-sm text-gray-900"
+          placeholderTextColor="#9CA3AF"
+          clearButtonMode="while-editing"
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        {filters.searchQuery !== '' && (
+          <TouchableOpacity onPress={() => setFilter({ searchQuery: '' })}>
+            <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+          </TouchableOpacity>
+        )}
+      </View>
+
       {/* Tipo */}
       <View className="flex-row gap-2 mb-6 mt-3">
         {(['all', 'expense', 'income'] as const).map((type) => {

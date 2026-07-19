@@ -6,27 +6,8 @@ import React, { useMemo } from 'react'
 import { View, Text, Dimensions } from 'react-native'
 import { PieChart } from 'react-native-chart-kit'
 import type { Transaction, TransactionType } from '@/types'
-import { getCategoryById } from '@/constants/categories'
-
-// Colores para categorías de gasto
-const EXPENSE_COLORS: Record<string, string> = {
-  food:          '#EF4444',
-  transport:     '#F97316',
-  health:        '#22C55E',
-  education:     '#3B82F6',
-  services:      '#A855F7',
-  entertainment: '#EAB308',
-  others:        '#6B7280',
-}
-
-// Colores para categorías de ingreso
-const INCOME_COLORS: Record<string, string> = {
-  salary:   '#16A34A',
-  freelance: '#0EA5E9',
-  sale:     '#F59E0B',
-}
-
-const DEFAULT_COLOR = '#9CA3AF'
+import { useFinanceStore, selectAllCategories } from '@/store/useFinanceStore'
+import { CHART_COLORS } from '@/constants/colors'
 
 interface ChartDataItem {
   name: string
@@ -47,9 +28,9 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({
 }) => {
   const screenWidth = Dimensions.get('window').width
   const isExpense = type === 'expense'
-  const colors = isExpense ? EXPENSE_COLORS : INCOME_COLORS
   const title = isExpense ? 'Gastos por Categoría' : 'Ingresos por Categoría'
   const totalColor = isExpense ? 'text-red-600' : 'text-green-600'
+  const allCategories = useFinanceStore(selectAllCategories)
 
   const chartData: ChartDataItem[] = useMemo(() => {
     const filtered = transactions.filter((t) => t.type === type)
@@ -60,19 +41,22 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({
       grouped[t.category] = (grouped[t.category] || 0) + t.amount
     })
 
-    return Object.entries(grouped)
-      .map(([categoryId, amount]) => {
-        const category = getCategoryById(categoryId)
+    // Obtener las categorías ordenadas para asignar colores consistentes
+    const categoryIds = Object.keys(grouped).sort()
+
+    return categoryIds
+      .map((categoryId, index) => {
+        const category = allCategories.find((c) => c.id === categoryId)
         return {
           name: category?.label ?? categoryId,
-          amount,
-          color: colors[categoryId] ?? DEFAULT_COLOR,
+          amount: grouped[categoryId],
+          color: CHART_COLORS[index % CHART_COLORS.length],
           legendFontColor: '#6B7280',
           legendFontSize: 12,
         }
       })
       .sort((a, b) => b.amount - a.amount)
-  }, [transactions, type, colors])
+  }, [transactions, type, allCategories])
 
   const total = useMemo(
     () => chartData.reduce((sum, item) => sum + item.amount, 0),

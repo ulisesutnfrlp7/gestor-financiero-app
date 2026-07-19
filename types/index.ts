@@ -39,3 +39,16 @@ export interface DashboardSummary {
   totalExpenses: number
   transactionCount: number
 }
+
+/**
+ * Categoría personalizada creada por el usuario.
+ * Se almacena en una subcolección /users/{userId}/categories/.
+ */
+export interface CustomCategory {
+  id: string
+  label: string
+  type: TransactionType
+  icon: string
+  userId: string
+  createdAt: string
+}

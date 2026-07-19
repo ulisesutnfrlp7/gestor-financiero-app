@@ -8,7 +8,7 @@
 // - 'amount' se trata como string en el form y se convierte a número en onSubmit
 // - La fecha usa un DatePicker nativo (@react-native-community/datetimepicker)
 
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import {
   View,
   Text,
@@ -27,7 +27,7 @@ import {
   type TransactionFormValues,
 } from '@/schemas/transaction.schema'
 import type { Transaction, TransactionFormData, TransactionType } from '@/types'
-import { getCategoriesByType } from '@/constants/categories'
+import { useFinanceStore, selectAllCategories } from '@/store/useFinanceStore'
 import { Button } from '@/components/ui/Button'
 import { getCurrentDateISO, formatShortDate } from '@/utils/formatters'
 
@@ -64,7 +64,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   })
 
   const selectedType = watch('type')
-  const categories = getCategoriesByType(selectedType)
+  const allCategories = useFinanceStore(selectAllCategories)
+  const categories = useMemo(
+    () => allCategories.filter((c) => c.type === selectedType),
+    [allCategories, selectedType]
+  )
 
   const handleTypeChange = (type: TransactionType) => {
     setValue('type', type, { shouldValidate: false })

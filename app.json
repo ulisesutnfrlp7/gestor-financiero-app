@@ -6,6 +6,11 @@
     "scheme": "gestor-financiero-app",
     "orientation": "portrait",
     "icon": "./assets/icono.png",
+    "splash": {
+      "image": "./assets/splashscreen.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4F46E5"
+    },
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {

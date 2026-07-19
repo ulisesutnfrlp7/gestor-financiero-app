@@ -7,7 +7,7 @@ import { View, Text, TouchableOpacity } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import type { Transaction } from '@/types'
 import { formatCurrency, formatShortDate } from '@/utils/formatters'
-import { getCategoryById } from '@/constants/categories'
+import { useFinanceStore, selectAllCategories } from '@/store/useFinanceStore'
 
 interface TransactionItemProps {
   transaction: Transaction
@@ -23,7 +23,8 @@ const TransactionItemComponent: React.FC<TransactionItemProps> = ({
   onDelete,
 }) => {
   const isIncome = transaction.type === 'income'
-  const category = getCategoryById(transaction.category)
+  const allCategories = useFinanceStore(selectAllCategories)
+  const category = allCategories.find((c) => c.id === transaction.category)
 
   return (
     <TouchableOpacity

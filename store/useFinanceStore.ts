@@ -2,7 +2,7 @@
 // Store central de Zustand.
 //
 // Decisión de diseño:
-// - El store solo guarda estado sincrónico (transactions, loading, error, userId).
+// - El store solo guarda estado sincrónico (transactions, categories, loading, error, userId).
 // - Las operaciones async (Firebase) viven en los servicios y se llaman desde las pantallas.
 // - Los selectores (selectBalance, etc.) son funciones puras fuera del store para
 //   evitar computaciones en el render y facilitar memoización con useCallback/useMemo.
@@ -10,16 +10,18 @@
 // Patrón recomendado para Zustand: un hook por store, selectores externos.
 
 import { create } from 'zustand'
-import type { Transaction } from '@/types'
+import type { Transaction, CustomCategory } from '@/types'
 
 interface FinanceState {
   transactions: Transaction[]
+  categories: CustomCategory[]
   isLoading: boolean
   error: string | null
   userId: string | null
 
   // Acciones — nombre explícito de lo que hacen
   setTransactions: (transactions: Transaction[]) => void
+  setCategories: (categories: CustomCategory[]) => void
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
   setUserId: (userId: string | null) => void
@@ -28,12 +30,14 @@ interface FinanceState {
 export const useFinanceStore = create<FinanceState>()((set) => ({
   // Estado inicial
   transactions: [],
+  categories: [],
   isLoading: false,
   error: null,
   userId: null,
 
   // Setters inmutables
   setTransactions: (transactions) => set({ transactions }),
+  setCategories:   (categories)   => set({ categories }),
   setLoading:      (isLoading)    => set({ isLoading }),
   setError:        (error)        => set({ error }),
   setUserId:       (userId)       => set({ userId }),
@@ -55,3 +59,7 @@ export const selectTotalExpenses = (state: FinanceState): number =>
 
 export const selectBalance = (state: FinanceState): number =>
   selectTotalIncome(state) - selectTotalExpenses(state)
+
+// Selector para obtener todas las categorías
+export const selectAllCategories = (state: FinanceState): CustomCategory[] =>
+  state.categories
