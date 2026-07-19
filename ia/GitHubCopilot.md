@@ -709,3 +709,94 @@ return (
 ---
 
 Aplicá los tres cambios, hacé el rebuild con `eas build --platform android --profile preview`, y el crash desaparece.
+
+# CONVERSACIÓN 18/7/2026
+
+Planeemos. Tengo un problema para elegir el color de las categorías en el deslizable. Está roto. No gastes tokens en vano.
+
+Lista de tareas pendientes actualizada
+
+Read [](file:///c%3A/Users/tauma/OneDrive/Escritorio/repo-gestor-financiero-app/gestor-financiero-app/components/categories/ColorPicker.tsx#1-1), lines 1 to 100
+
+Read [](file:///c%3A/Users/tauma/OneDrive/Escritorio/repo-gestor-financiero-app/gestor-financiero-app/components/categories/CategoryManager.tsx#1-1), lines 1 to 100
+
+Read [](file:///c%3A/Users/tauma/OneDrive/Escritorio/repo-gestor-financiero-app/gestor-financiero-app/components/categories/ColorPicker.tsx#100-100), lines 100 to 100
+
+Read [](file:///c%3A/Users/tauma/OneDrive/Escritorio/repo-gestor-financiero-app/gestor-financiero-app/components/categories/CategoryManager.tsx#100-100), lines 100 to 250
+
+Read [](file:///c%3A/Users/tauma/OneDrive/Escritorio/repo-gestor-financiero-app/gestor-financiero-app/components/categories/CategoryManager.tsx#250-250), lines 250 to 371
+
+Read [](file:///c%3A/Users/tauma/OneDrive/Escritorio/repo-gestor-financiero-app/gestor-financiero-app/components/categories/ColorPicker.tsx#99-99), lines 99 to 118
+
+Tengo suficiente contexto. El problema es claro.
+
+**Causa raíz:** `ColorPicker` usa el sistema de responders crudos de React Native (`onStartShouldSetResponder`, `onMoveShouldSetResponder`, `onResponderMove`). Al estar dentro del `ScrollView` de `CategoryManager`, Android intercepta los gestos de arrastre antes de que el responder del picker pueda reclamarlos — aunque `onResponderTerminationRequest` devuelva `false`, el `ScrollView` nativo en Android puede ignorarlo y disparar `onResponderTerminate`.
+
+---
+
+## Plan: Fix ColorPicker dentro de ScrollView
+
+El `ColorPicker` está envuelto por el `ScrollView` del `CategoryManager`. El sistema de responders crudos pierde el gesto de arrastre horizontal frente al scroll vertical nativo. La solución es reemplazar el sistema de responders con `PanGestureHandler` de `react-native-gesture-handler` (ya instalado y ya envuelto en `GestureHandlerRootView` desde el fix del crash anterior).
+
+**Pasos**
+
+1. **Reescribir ColorPicker.tsx** — eliminar todos los `onStartShouldSetResponder`, `onMoveShouldSetResponder`, `onResponderGrant`, `onResponderMove` del `View` interior. Reemplazar con `PanGestureHandler` + `onGestureEvent` (RNGH v2 API). El handler recibe `translationX` + `x` del evento para calcular `locationX` sobre el ancho del gradiente.
+
+2. **Sin cambios en CategoryManager.tsx** — el problema es 100% interno al `ColorPicker`. La interfaz `ColorPickerProps` (`color`, `onChange`) no cambia.
+
+**Archivos relevantes**
+- ColorPicker.tsx — única modificación: lógica de gesture handling (líneas 60–89 aprox.). La lógica `hueToHex`/`hexToHue` y el render del gradiente no cambian.
+
+**Verificación**
+1. Abrir `CategoryManager` → sección "Nueva Categoría" → arrastrar el slider de color → debe actualizar el indicador y el hex en tiempo real
+2. Abrir edición de una categoría existente → mismo comportamiento
+3. No debe haber conflicto con el scroll vertical del modal
+
+**Decisiones**
+- Usar `PanGestureHandler` (RNGH v2, API de clases) en lugar de `GestureDetector` (v2 nueva API) para mantener consistencia con lo que ya usa la app
+- Scope: solo ColorPicker.tsx, sin tocar lógica de colores ni `CategoryManager`
+
+¿Aprobás el plan?
+
+"TapGestureHandler" está en desuso.ts(6385)[TapGestureHandler.d.ts(55, 4):]()La declaración se ha marcado aquí como en desuso.
+
+⚠ Error (TS6385) [](vscode-file://vscode-app/c:/Program%20Files/Microsoft%20VS%20Code/125df4672b/resources/app/out/vs/code/electron-browser/workbench/workbench.html)| [](vscode-file://vscode-app/c:/Program%20Files/Microsoft%20VS%20Code/125df4672b/resources/app/out/vs/code/electron-browser/workbench/workbench.html)| [](vscode-file://vscode-app/c:/Program%20Files/Microsoft%20VS%20Code/125df4672b/resources/app/out/vs/code/electron-browser/workbench/workbench.html)| [](vscode-file://vscode-app/c:/Program%20Files/Microsoft%20VS%20Code/125df4672b/resources/app/out/vs/code/electron-browser/workbench/workbench.html)
+
+"TapGestureHandler" está en desuso.
+
+(alias) const TapGestureHandler: React.ComponentType<TapGestureHandlerProps & React.RefAttributes<any>>
+import TapGestureHandler
+
+*@deprecated* — TapGestureHandler will be removed in the future version of Gesture Handler. Use `Gesture.Tap()` instead.
+
+*@deprecated* — TapGestureHandler will be removed in the future version of Gesture Handler. Use `Gesture.Tap()` instead.
+
+[PanGestureHandler.d.ts(91, 4):]()La declaración se ha marcado aquí como en desuso.
+
+⚠ Error (TS6385) [](vscode-file://vscode-app/c:/Program%20Files/Microsoft%20VS%20Code/125df4672b/resources/app/out/vs/code/electron-browser/workbench/workbench.html)| [](vscode-file://vscode-app/c:/Program%20Files/Microsoft%20VS%20Code/125df4672b/resources/app/out/vs/code/electron-browser/workbench/workbench.html)| [](vscode-file://vscode-app/c:/Program%20Files/Microsoft%20VS%20Code/125df4672b/resources/app/out/vs/code/electron-browser/workbench/workbench.html)| [](vscode-file://vscode-app/c:/Program%20Files/Microsoft%20VS%20Code/125df4672b/resources/app/out/vs/code/electron-browser/workbench/workbench.html)
+
+"PanGestureHandler" está en desuso.
+
+(alias) const PanGestureHandler: React.ComponentType<PanGestureHandlerProps & React.RefAttributes<any>>
+import PanGestureHandler
+
+*@deprecated* — PanGestureHandler will be removed in the future version of Gesture Handler. Use `Gesture.Pan()` instead.
+
+*@deprecated* — PanGestureHandler will be removed in the future version of Gesture Handler. Use `Gesture.Pan()` instead.
+
+inguna sobrecarga coincide con esta llamada.
+  La sobrecarga 1 de 2, "(props: TapGestureHandlerProps & RefAttributes<any>, context?: any): string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | ... 4 more ... | undefined", dio el error siguiente.
+    El tipo '(e: TapGestureHandlerGestureEvent) => void' no se puede asignar al tipo '(event: HandlerStateChangeEvent<Record<string, unknown>>) => void'.
+      Los tipos de parámetros 'e' y 'event' no son compatibles.
+        El tipo 'HandlerStateChangeEvent<Record<string, unknown>>' no se puede asignar al tipo 'TapGestureHandlerGestureEvent'.
+          Los tipos de propiedad 'nativeEvent' no son compatibles.
+            Al tipo "Readonly<HandlerStateChangeEventPayload & Record<string, unknown>>" le faltan las propiedades siguientes del tipo "Readonly<GestureEventPayload & TapGestureHandlerEventPayload>": x, y, absoluteX, absoluteY
+  La sobrecarga 2 de 2, "(props: TapGestureHandlerProps & RefAttributes<any>): string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | ... 4 more ... | undefined", dio el error siguiente.
+    El tipo '(e: TapGestureHandlerGestureEvent) => void' no se puede asignar al tipo '(event: HandlerStateChangeEvent<Record<string, unknown>>) => void'.
+      Los tipos de parámetros 'e' y 'event' no son compatibles.
+        El tipo 'HandlerStateChangeEvent<Record<string, unknown>>' no se puede asignar al tipo 'TapGestureHandlerGestureEvent'.
+          Los tipos de propiedad 'nativeEvent' no son compatibles.
+            Al tipo "Readonly<HandlerStateChangeEventPayload & Record<string, unknown>>" le faltan las propiedades siguientes del tipo "Readonly<GestureEventPayload & TapGestureHandlerEventPayload>": x, y, absoluteX, absoluteYts(2769)[gestureHandlerCommon.d.ts(73, 5):]()El tipo esperado procede de la propiedad "onActivated", que se declara aquí en el tipo "IntrinsicAttributes & TapGestureHandlerProps & RefAttributes<any>"
+[gestureHandlerCommon.d.ts(73, 5):]()El tipo esperado procede de la propiedad "onActivated", que se declara aquí en el tipo "IntrinsicAttributes & TapGestureHandlerProps & RefAttributes<any>"
+
+No gastes tokens en vano.

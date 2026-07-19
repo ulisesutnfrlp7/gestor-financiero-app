@@ -19,6 +19,7 @@ import {
 import { db } from '@/lib/firebase'
 import type { CustomCategory, TransactionType } from '@/types'
 import { ALL_CATEGORIES } from '@/constants/categories'
+import { CHART_COLORS } from '@/constants/colors'
 
 const getCategoriesRef = (userId: string) =>
   collection(db, 'users', userId, 'categories')
@@ -45,6 +46,7 @@ export const subscribeToCategories = (
           id: docSnap.id,
           label:    data['label'] as string,
           type:     data['type'] as TransactionType,
+          color:    data['color'] as string,
           icon:     data['icon'] as string,
           userId:   data['userId'] as string,
           createdAt: data['createdAt'] as string,
@@ -70,16 +72,17 @@ export const seedDefaultCategories = async (userId: string): Promise<void> => {
   const batch = writeBatch(db)
   const now = new Date().toISOString()
 
-  for (const cat of ALL_CATEGORIES) {
+  ALL_CATEGORIES.forEach((cat, index) => {
     const docRef = doc(ref)
     batch.set(docRef, {
       label: cat.label,
       type: cat.type,
+      color: CHART_COLORS[index % CHART_COLORS.length],
       icon: cat.icon,
       userId,
       createdAt: now,
     })
-  }
+  })
 
   await batch.commit()
 }
@@ -89,7 +92,7 @@ export const seedDefaultCategories = async (userId: string): Promise<void> => {
  */
 export const createCategory = async (
   userId: string,
-  data: { label: string; type: TransactionType; icon: string }
+  data: { label: string; type: TransactionType; color: string; icon: string }
 ): Promise<string> => {
   const docRef = await addDoc(getCategoriesRef(userId), {
     ...data,
@@ -100,12 +103,12 @@ export const createCategory = async (
 }
 
 /**
- * Actualiza el nombre de una categoría existente.
+ * Actualiza el nombre y/o color de una categoría existente.
  */
 export const updateCategory = async (
   userId: string,
   categoryId: string,
-  data: { label: string }
+  data: { label: string; color: string }
 ): Promise<void> => {
   const docRef = doc(db, 'users', userId, 'categories', categoryId)
   await updateDoc(docRef, data)

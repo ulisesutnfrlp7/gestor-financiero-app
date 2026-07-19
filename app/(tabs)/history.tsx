@@ -10,7 +10,6 @@ import { Ionicons } from '@expo/vector-icons'
 import { useFinanceStore } from '@/store/useFinanceStore'
 import { TransactionList } from '@/components/transactions/TransactionList'
 import { TransactionFilters, type Filters } from '@/components/transactions/TransactionFilters'
-import { CategoryManager } from '@/components/categories/CategoryManager'
 import { deleteTransaction, fetchTransactions } from '@/services/transactions.service'
 
 export default function HistoryScreen() {
@@ -19,7 +18,6 @@ export default function HistoryScreen() {
   const userId       = useFinanceStore((state) => state.userId)
   const setTransactions = useFinanceStore((state) => state.setTransactions)
   const [refreshing, setRefreshing] = useState(false)
-  const [showCategoryManager, setShowCategoryManager] = useState(false)
   const [filters, setFilters] = useState<Filters>({
     type: 'all',
     category: '',
@@ -78,16 +76,8 @@ export default function HistoryScreen() {
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       {/* Encabezado */}
-      <View className="px-5 pt-6 pb-2 flex-row items-center justify-between">
+      <View className="px-5 pt-6 pb-2">
         <Text className="text-2xl font-bold text-gray-900">Historial</Text>
-        <TouchableOpacity
-          onPress={() => setShowCategoryManager(true)}
-          className="p-2"
-          accessibilityLabel="Gestionar categorías"
-          accessibilityRole="button"
-        >
-          <Ionicons name="settings-outline" size={22} color="#FFFFFFF" />
-        </TouchableOpacity>
       </View>
 
       {/* Filtros */}
@@ -102,12 +92,6 @@ export default function HistoryScreen() {
         onDelete={handleDelete}
         refreshing={refreshing}
         onRefresh={handleRefresh}
-      />
-
-      {/* Category Manager Modal */}
-      <CategoryManager
-        visible={showCategoryManager}
-        onClose={() => setShowCategoryManager(false)}
       />
 
       {/* FAB */}

@@ -7,7 +7,6 @@ import { View, Text, Dimensions } from 'react-native'
 import { PieChart } from 'react-native-chart-kit'
 import type { Transaction, TransactionType } from '@/types'
 import { useFinanceStore, selectAllCategories } from '@/store/useFinanceStore'
-import { CHART_COLORS } from '@/constants/colors'
 
 interface ChartDataItem {
   name: string
@@ -45,12 +44,12 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({
     const categoryIds = Object.keys(grouped).sort()
 
     return categoryIds
-      .map((categoryId, index) => {
+      .map((categoryId) => {
         const category = allCategories.find((c) => c.id === categoryId)
         return {
           name: category?.label ?? categoryId,
           amount: grouped[categoryId],
-          color: CHART_COLORS[index % CHART_COLORS.length],
+          color: category?.color ?? '#9CA3AF',
           legendFontColor: '#6B7280',
           legendFontSize: 12,
         }

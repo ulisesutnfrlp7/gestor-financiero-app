@@ -48,6 +48,7 @@ export interface CustomCategory {
   id: string
   label: string
   type: TransactionType
+  color: string
   icon: string
   userId: string
   createdAt: string
