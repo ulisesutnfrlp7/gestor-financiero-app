@@ -9,7 +9,7 @@ import { CategoryManager } from '@/components/categories/CategoryManager'
 export default function CategoriesScreen() {
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
-      <CategoryManager asScreen />
+      <CategoryManager />
     </SafeAreaView>
   )
 }

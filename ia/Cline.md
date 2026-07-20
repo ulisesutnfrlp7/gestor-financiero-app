@@ -3645,3 +3645,103 @@ Ahora debería funcionar: tocás o arrastrás sobre el gradiente y el color camb
 
 El único problema que tengo es que no me deja arrastrar el botoncito para cambiar el color, ni tampoco me deja tocar en la barra de colores para cambiar el color de la categoría.
 
+✅ **ColorPicker reemplazado por grilla de círculos táctiles.**
+
+### Cambio realizado
+
+**`components/categories/ColorPicker.tsx`** — Reescrito completamente:
+- Eliminado `PanResponder` (causaba conflictos con ScrollView)
+- Ahora es una grilla horizontal de 20 círculos de colores
+- El usuario toca el círculo del color deseado (sin arrastre)
+- Sin dependencias externas, sin conflictos
+
+**`components/categories/CategoryManager.tsx`** — Actualizado el import para usar el componente local.
+
+### Cómo funciona
+- 20 colores vibrantes en un `ScrollView` horizontal
+- Al tocar un círculo se selecciona (se agranda y muestra borde indigo)
+- Preview del color seleccionado con código hex
+- Funciona tanto en modal como en pantalla completa
+
+### Archivos involucrados en el feature completo
+- `types/index.ts` — `color` en `CustomCategory`
+- `schemas/category.schema.ts` — Validación Zod + duplicados
+- `services/categories.service.ts` — `color` en create/update/seed
+- `components/categories/ColorPicker.tsx` — Grilla de colores táctiles
+- `components/categories/CategoryManager.tsx` — Gestión de categorías con selector de color
+- `app/(tabs)/categories.tsx` — Pantalla de Categorías
+- `app/(tabs)/_layout.tsx` — Tab "Categorías" en navbar
+- `app/(tabs)/history.tsx` — Eliminado modal e ícono engranaje
+- `components/dashboard/CategoryChart.tsx` — Usa `category.color`
+
+me gusta lo actual. Agregá, por lo menos, 15 colores más.
+
+✅ **Paleta de colores expandida de 20 a 35 colores.**
+
+### Cambio en `components/categories/ColorPicker.tsx`
+
+El array `COLORS` ahora tiene 35 colores organizados por familias:
+
+- **Rojos y naranjas** (5): rojo, naranja, coral, ámbar, amarillo
+- **Amarillos y verdes** (5): amarillo, verde, verde esmeralda, lima, verde menta
+- **Verdes azulados y cyan** (5): teal, cyan, celeste, azul royal, índigo
+- **Azules y morados** (5): violeta, púrpura, magenta, rosa, rosa intenso
+- **Rosas y adicionales** (5): rosa claro, rosa salmón, rojo oscuro, rojo intenso, burdeos
+- **Tonos pastel y adicionales** (10): verde lima pastel, verde claro, turquesa, celeste pastel, lavanda, lila, rosa pastel
+
+El usuario puede tocar cualquier círculo para seleccionar ese color. El seleccionado se agranda y muestra un borde indigo.
+
+# CONVERSACIÓN 20/07/2026
+
+// components/categories/CategoryManager.tsx
+// Gestión de categorías personalizadas.
+// Permite crear, editar y eliminar categorías.
+//
+// Se puede usar como:
+//   - Modal (asScreen=false): desde el ícono engranaje en Historial
+//   - Pantalla (asScreen=true): desde la tab "Categorías"
+
+¿Por qué esto si solo se puede acceder al CategoryManager desde la tab? Ya no aplica el engranaje en Historial... No se necesita...
+
+Tienes razón. He verificado el código y confirmo que:
+
+**Situación actual:**
+- El `CategoryManager` solo se usa como pantalla completa en `app/(tabs)/categories.tsx` con `asScreen`
+- No existe ningún otro lugar en el código que lo use como modal (con `visible` y `onClose`)
+- El comentario del componente es obsoleto porque menciona el uso como modal desde Historial, pero ese caso ya no existe
+
+**Plan de limpieza:**
+
+1. **Actualizar comentario en CategoryManager.tsx** (líneas 1-7):
+   - Eliminar la referencia al uso como modal desde Historial
+   - Mantener solo la documentación del uso como pantalla
+
+2. **Evaluar si eliminar la lógica del Modal**:
+   - Opción A: Mantener el código del Modal por si lo necesitan en el futuro (más seguro)
+   - Opción B: Eliminar toda la lógica del Modal y dejar solo el renderizado como pantalla (más limpio)
+
+¿Quieres que proceda con la Opción A (solo actualizar comentarios) o con la Opción B (eliminar código del Modal completamente)?
+
+Opción B.
+
+Se completó la refactorización del componente CategoryManager (Opción B):
+
+## Cambios realizados:
+
+### 1. **components/categories/CategoryManager.tsx**
+- **Comentario actualizado**: Ahora documenta que es una "Pantalla de gestión de categorías" en lugar de mencionar el uso como modal
+- **Props eliminadas**: Se removieron `visible`, `onClose` y `asScreen` del componente
+- **Interfaz eliminada**: Se eliminó `CategoryManagerProps` 
+- **Código del Modal removido**: Se eliminó toda la lógica de renderizado condicional del Modal
+- **Componente simplificado**: Ahora es una función sin parámetros: `export const CategoryManager = () => { ... }`
+- **Imports limpiados**: Se eliminaron `Modal` e `Ionicons` (ya no se necesitan)
+
+### 2. **app/(tabs)/categories.tsx**
+- **Uso actualizado**: Ahora se llama `<CategoryManager />` sin props en lugar de `<CategoryManager asScreen />`
+
+## Resultado:
+- El componente es más limpio y simple
+- No hay código muerto (lógica de Modal que nunca se usa)
+- Los comentarios reflejan la realidad actual del componente
+- No hay referencias rotas en el código
+

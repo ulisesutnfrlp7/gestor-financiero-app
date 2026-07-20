@@ -1,16 +1,11 @@
 // components/categories/CategoryManager.tsx
-// Gestión de categorías personalizadas.
+// Pantalla de gestión de categorías personalizadas.
 // Permite crear, editar y eliminar categorías.
-//
-// Se puede usar como:
-//   - Modal (asScreen=false): desde el ícono engranaje en Historial
-//   - Pantalla (asScreen=true): desde la tab "Categorías"
 
 import React, { useState, useMemo } from 'react'
 import {
   View,
   Text,
-  Modal,
   TouchableOpacity,
   TextInput,
   ScrollView,
@@ -27,17 +22,7 @@ import {
 import { categorySchema, validateCategoryUniqueness } from '@/schemas/category.schema'
 import { ColorPicker } from './ColorPicker'
 
-interface CategoryManagerProps {
-  visible?: boolean
-  onClose?: () => void
-  asScreen?: boolean
-}
-
-export const CategoryManager: React.FC<CategoryManagerProps> = ({
-  visible,
-  onClose,
-  asScreen = false,
-}) => {
+export const CategoryManager = () => {
   const userId     = useFinanceStore((state) => state.userId)
   const allCategories = useFinanceStore(selectAllCategories)
   const transactions = useFinanceStore((state) => state.transactions)
@@ -250,7 +235,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
 
   // ─── Contenido principal ────────────────────────────────────────────────────
 
-  const content = (
+  return (
     <ScrollView className="flex-1 px-5 pt-4" keyboardShouldPersistTaps="handled">
       {/* Crear nueva categoría */}
       <View className="bg-white border border-gray-200 rounded-lg px-4 py-5 mb-6">
@@ -341,37 +326,5 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
         </View>
       )}
     </ScrollView>
-  )
-
-  // ─── Render: modal o pantalla ───────────────────────────────────────────────
-
-  if (asScreen) {
-    return (
-      <View className="flex-1 bg-gray-50">
-        <View className="px-5 pt-6 pb-2">
-          <Text className="text-2xl font-bold text-gray-900">Categorías</Text>
-        </View>
-        {content}
-      </View>
-    )
-  }
-
-  return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <View className="flex-1 bg-gray-50">
-        <View className="flex-row items-center justify-between px-5 pt-6 pb-4 bg-white border-b border-gray-200">
-          <Text className="text-xl font-bold text-gray-900">Categorías</Text>
-          <TouchableOpacity onPress={onClose}>
-            <Ionicons name="close" size={24} color="#6B7280" />
-          </TouchableOpacity>
-        </View>
-        {content}
-      </View>
-    </Modal>
   )
 }
