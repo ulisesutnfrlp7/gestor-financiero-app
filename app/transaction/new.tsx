@@ -40,7 +40,7 @@ export default function NewTransactionScreen() {
           <Text className="text-red-600 text-sm text-center">{error}</Text>
         </View>
       )}
-      <TransactionForm onSubmit={handleSubmit} />
+      <TransactionForm onSubmit={handleSubmit} onCancel={() => router.back()} />
     </SafeAreaView>
   )
 }

@@ -11,10 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { router, useLocalSearchParams } from 'expo-router'
 import { TransactionForm } from '@/components/transactions/TransactionForm'
 import { useFinanceStore } from '@/store/useFinanceStore'
-import {
-  updateTransaction,
-  deleteTransaction,
-} from '@/services/transactions.service'
+import { updateTransaction } from '@/services/transactions.service'
 import type { TransactionFormData } from '@/types'
 import { isOnline } from '@/utils/network'
 
@@ -41,31 +38,6 @@ export default function EditTransactionScreen() {
     router.back()
   }
 
-  const handleDelete = () => {
-    Alert.alert(
-      'Eliminar Movimiento',
-      '¿Estás seguro? Esta acción no se puede deshacer.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            if (!id) return
-            const online = await isOnline()
-            if (!online) {
-              Alert.alert('Sin conexión', 'Sin conexión a Internet. Verificá tu conexión.')
-              return
-            }
-            await deleteTransaction(id)
-            Alert.alert('Éxito', 'Movimiento eliminado exitosamente.')
-            router.back()
-          },
-        },
-      ]
-    )
-  }
-
   // El movimiento podría no encontrarse si el store aún está cargando
   if (!transaction) return null
 
@@ -79,7 +51,7 @@ export default function EditTransactionScreen() {
       <TransactionForm
         initialData={transaction}
         onSubmit={handleSubmit}
-        onDelete={handleDelete}
+        onCancel={() => router.back()}
       />
     </SafeAreaView>
   )

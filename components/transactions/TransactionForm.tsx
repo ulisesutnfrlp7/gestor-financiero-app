@@ -16,6 +16,7 @@ import {
   TextInput,
   TouchableOpacity,
   Platform,
+  Alert,
 } from 'react-native'
 import DateTimePicker, {
   DateTimePickerEvent,
@@ -34,13 +35,13 @@ import { getCurrentDateISO, formatShortDate } from '@/utils/formatters'
 interface TransactionFormProps {
   initialData?: Transaction
   onSubmit: (data: TransactionFormData) => Promise<void>
-  onDelete?: () => void
+  onCancel?: () => void
 }
 
 export const TransactionForm: React.FC<TransactionFormProps> = ({
   initialData,
   onSubmit,
-  onDelete,
+  onCancel,
 }) => {
   const [showDatePicker, setShowDatePicker] = useState(false)
 
@@ -83,6 +84,32 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       date:        data.date,
       type:        data.type,
     })
+  }
+
+  const hasChanges = () => {
+    const amount = watch('amount')
+    const description = watch('description')
+    const category = watch('category')
+    return amount !== '' || description !== '' || category !== ''
+  }
+
+  const handleCancel = () => {
+    if (hasChanges()) {
+      Alert.alert(
+        '¿Estás seguro?',
+        'Perderás el progreso del movimiento.',
+        [
+          { text: 'Seguir editando', style: 'cancel' },
+          {
+            text: 'Salir',
+            style: 'destructive',
+            onPress: () => onCancel?.(),
+          },
+        ]
+      )
+    } else {
+      onCancel?.()
+    }
   }
 
   const handleDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
@@ -271,11 +298,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             onPress={handleSubmit(onFormSubmit)}
             loading={isSubmitting}
           />
-
-          {onDelete && (
+          {onCancel && (
             <Button
-              title="Eliminar Movimiento"
-              onPress={onDelete}
+              title="Cancelar"
+              onPress={handleCancel}
               variant="danger"
               disabled={isSubmitting}
             />

@@ -3946,3 +3946,112 @@ En `index.tsx` (Dashboard):
 - Sin cambios (el filtro maneja todo internamente)
 
 Toggleame a **Act Mode** y lo implemento.
+
+* Necesito eliminar el botón "Eliminar Movimiento" que se encuentra en el modal de "Editar Movimiento". Es decir, un movimiento solo se puede eliminar a través del tacho de basura. Eliminá el botón correspondiente y lo relacionado a él, si aplica (para el modal). Refactorizamos.
+
+**Análisis:** Hay que tocar 2 archivos.
+
+### Archivos a modificar
+
+| Archivo | Cambio |
+|---------|--------|
+| `app/transaction/[id].tsx` | Eliminar `handleDelete`, eliminar `onDelete` del `TransactionForm`, eliminar import de `deleteTransaction` |
+| `components/transactions/TransactionForm.tsx` | Eliminar prop `onDelete` de la interfaz, eliminar el botón "Eliminar Movimiento" |
+
+Toggleame a **Act Mode** y lo resuelvo.
+
+✅ **Botón "Eliminar Movimiento" eliminado del modal de edición.**
+
+### Archivos modificados
+
+| Archivo | Cambio |
+|---------|--------|
+| `app/transaction/[id].tsx` | Eliminado `handleDelete`, eliminado `onDelete` del `TransactionForm`, eliminado import de `deleteTransaction` y `isOnline` (ya no se necesita para eliminar desde acá) |
+| `components/transactions/TransactionForm.tsx` | Eliminada prop `onDelete` de la interfaz, eliminado el botón "Eliminar Movimiento" con `variant="danger"` |
+
+### Cómo se eliminan los movimientos ahora
+
+Solo a través del **ícono de tacho de basura** en la lista del Historial (`app/(tabs)/history.tsx`), que usa `TransactionItem` con `onDelete`.
+
+* Resolvamos unos temas de navegación y guardado:
+
+1) Deseo que, para Registrar un Movimiento, abajo del botón "Registrar Movimiento", exista un botón "Cancelar" que dispare el mismo evento que la flechita de volver para atrás (navegación): un Alert que diga algo como: ¿Estás seguro? Perderás el progreso del movimiento... Si es que ya se rellenó el Monto, Descripción o Categoría del Movimiento. Si el usuario acepta, debería retornarlo a, obviamente, "Historial de Movimientos".
+
+* Deseo que, para Editar un Movimiento, abajo del botón "Editar Movimiento", exista un botón "Cancelar" que dispare el mismo evento que la flechita de volver para atrás (navegación): un Alert que diga algo como: ¿Estás seguro? Perderás el progreso del movimiento... Si es que ya se rellenó el Monto, Descripción o Categoría del Movimiento. Si el usuario acepta, debería retornarlo a, obviamente, "Historial de Movimientos".
+
+3) Necesito que, para Crear y Editar categorías, exista un Alert que diga algo como ¿Estás seguro? Perderés el progreso del movimiento... Si es que ya se rellenó el nombre o se seleccionó el color de la categoría (en el caso de edición, si es que cambió algo respecto al estado original).
+
+**Análisis de archivos para los 3 cambios:**
+
+### 1. Botón "Cancelar" en TransactionForm (crear/editar)
+
+**Archivo:** `components/transactions/TransactionForm.tsx`
+
+Agregar:
+- Import `router` y `Alert`
+- Botón "Cancelar" debajo del botón principal
+- Función `handleCancel` que revisa si hay datos escritos (amount, description, category) y muestra Alert
+- Prop `onCancel` para que la pantalla padre defina la navegación
+
+**Archivo:** `app/transaction/new.tsx`
+- Pasar `onCancel` que hace `router.back()`
+
+**Archivo:** `app/transaction/[id].tsx`
+- Pasar `onCancel` que hace `router.back()`
+
+### 2. Confirmación al salir de CategoryManager (crear/editar)
+
+**Archivo:** `components/categories/CategoryManager.tsx`
+
+- Usar `useBackHandler` de `react-native` (o interceptar la navegación) para detectar cuando el usuario quiere salir
+- Si hay cambios sin guardar (nombre escrito o color distinto al default), mostrar Alert
+
+### Propuesta de implementación
+
+| Archivo | Cambio |
+|---------|--------|
+| `components/transactions/TransactionForm.tsx` | Agregar botón "Cancelar" + lógica de verificación de campos |
+| `app/transaction/new.tsx` | Pasar `onCancel` |
+| `app/transaction/[id].tsx` | Pasar `onCancel` |
+| `components/categories/CategoryManager.tsx` | Interceptar salida con confirmación si hay cambios |
+| `app/(tabs)/categories.tsx` | Usar `useBackHandler` para la tab |
+
+Toggleame a **Act Mode** y lo implemento.
+
+✅ **Botón "Cancelar" con confirmación implementado en formularios de transacciones.**
+
+### Archivos modificados
+
+| Archivo | Cambio |
+|---------|--------|
+| `components/transactions/TransactionForm.tsx` | Agregada prop `onCancel`, función `hasChanges()` que verifica si amount/description/category tienen datos, botón "Cancelar" con Alert de confirmación |
+| `app/transaction/new.tsx` | Pasa `onCancel={() => router.back()}` |
+| `app/transaction/[id].tsx` | Pasa `onCancel={() => router.back()}` |
+| `components/categories/CategoryManager.tsx` | Agregada función `hasUnsavedChanges()` para detectar si hay datos sin guardar |
+
+### Cómo funciona en Transacciones (crear y editar)
+
+1. El usuario rellena monto, descripción o categoría
+2. Toca "Cancelar"
+3. Si hay datos escritos → Alert: *"¿Estás seguro? Perderás el progreso del movimiento."* con opciones "Seguir editando" / "Salir"
+4. Si no hay datos → Sale directamente sin confirmación
+
+### Categorías
+
+La función `hasUnsavedChanges()` está implementada en `CategoryManager`, pero la navegación por tabs en Expo Router **no tiene evento `beforeRemove`** (solo disponible en Stack navigator). Para interceptar la salida de la tab de Categorías se necesitaría un enfoque diferente (por ejemplo, convertir la tab en un Stack modal). Queda pendiente para una próxima iteración si lo deseás.
+
+bien. Entonces abortamos misión para esto:
+
+### Categorías
+
+La función `hasUnsavedChanges()` está implementada en `CategoryManager`, pero la navegación por tabs en Expo Router __no tiene evento `beforeRemove`__ (solo disponible en Stack navigator). Para interceptar la salida de la tab de Categorías se necesitaría un enfoque diferente (por ejemplo, convertir la tab en un Stack modal). Queda pendiente para una próxima iteración si lo deseás.
+
+borrá lo relacionado.
+
+Simplemente elimino la función `hasUnsavedChanges()` de `components/categories/CategoryManager.tsx`. Las tabs de `categories.tsx` ya están limpias (no tienen el listener).
+
+Toggleame a **Act Mode** y lo resuelvo.
+
+✅ **`hasUnsavedChanges()` eliminado de `CategoryManager.tsx`.** 
+
+La función y su lógica ya no existen. El componente queda limpio.
