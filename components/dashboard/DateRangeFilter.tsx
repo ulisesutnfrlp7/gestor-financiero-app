@@ -1,6 +1,7 @@
 // components/dashboard/DateRangeFilter.tsx
 // Selector de rango de fechas para filtrar el Dashboard.
 // Usa DateTimePicker nativo.
+// Valida que la fecha "Hasta" no sea anterior a "Desde".
 
 import React, { useState } from 'react'
 import { View, Text, TouchableOpacity, Platform } from 'react-native'
@@ -21,22 +22,42 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
 }) => {
   const [showDateFrom, setShowDateFrom] = useState(false)
   const [showDateTo, setShowDateTo] = useState(false)
+  const [error, setError] = useState('')
 
   const handleDateFromChange = (_event: DateTimePickerEvent, date?: Date) => {
     setShowDateFrom(false)
-    if (date) {
-      onChange(date.toISOString().split('T')[0], dateTo)
+    if (!date) return
+
+    const newDateFrom = date.toISOString().split('T')[0]
+
+    // Validar que "Desde" no sea posterior a "Hasta"
+    if (dateTo && newDateFrom > dateTo) {
+      setError('La fecha "Desde" no puede ser posterior a la fecha "Hasta"')
+      return
     }
+
+    setError('')
+    onChange(newDateFrom, dateTo)
   }
 
   const handleDateToChange = (_event: DateTimePickerEvent, date?: Date) => {
     setShowDateTo(false)
-    if (date) {
-      onChange(dateFrom, date.toISOString().split('T')[0])
+    if (!date) return
+
+    const newDateTo = date.toISOString().split('T')[0]
+
+    // Validar que "Hasta" no sea anterior a "Desde"
+    if (dateFrom && newDateTo < dateFrom) {
+      setError('La fecha "Hasta" no puede ser anterior a la fecha "Desde"')
+      return
     }
+
+    setError('')
+    onChange(dateFrom, newDateTo)
   }
 
   const clearFilter = () => {
+    setError('')
     onChange('', '')
   }
 
@@ -47,7 +68,10 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
       <View className="flex-row gap-2">
         {/* Desde */}
         <TouchableOpacity
-          onPress={() => setShowDateFrom(true)}
+          onPress={() => {
+            setError('')
+            setShowDateFrom(true)
+          }}
           className={`flex-1 flex-row items-center gap-1.5 px-3 py-2.5 rounded-lg border ${
             dateFrom ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-white'
           }`}
@@ -60,9 +84,12 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
 
         {/* Hasta */}
         <TouchableOpacity
-          onPress={() => setShowDateTo(true)}
+          onPress={() => {
+            setError('')
+            setShowDateTo(true)
+          }}
           className={`flex-1 flex-row items-center gap-1.5 px-3 py-2.5 rounded-lg border ${
-            dateTo ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-white'
+            error ? 'border-red-400 bg-white' : dateTo ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-white'
           }`}
         >
           <Ionicons name="calendar-outline" size={16} color="#6B7280" />
@@ -81,6 +108,13 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Mensaje de error */}
+      {error && (
+        <View className="mt-4 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <Text className="text-red-600 text-xs text-center">{error}</Text>
+        </View>
+      )}
 
       {/* DatePickers */}
       {showDateFrom && (

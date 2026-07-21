@@ -3914,3 +3914,35 @@ Antes de ejecutar cualquier operación (crear, editar, eliminar):
 3. Si no responde (timeout de 5s) → se muestra una alerta: **"Sin conexión a Internet. Verificá tu conexión."** y se cancela la operación
 
 Esto evita que Firebase guarde datos localmente sin que el usuario lo sepa.
+
+# CONVERSACIÓN 21/07/2026
+
+* Necesito una validación en el filtrado de fechas para mostrar ingresos, gastos y gráficos. "Por favor, introduzca un rango de fechas válido", cuando la segunda fecha que se selecciona es anterior a la primera.
+
+**Análisis rápido del código actual:**
+
+En `DateRangeFilter.tsx`:
+- `handleDateFromChange` y `handleDateToChange` llaman a `onChange()` sin validar que el rango sea válido
+- No hay estado de error ni feedback visual
+
+En `index.tsx` (Dashboard):
+- El filtrado acepta cualquier combinación de fechas
+- Si `dateTo < dateFrom`, el filtro no excluye nada (no da error, pero muestra resultados incorrectos o vacíos)
+
+### Plan
+
+**Archivo:** `components/dashboard/DateRangeFilter.tsx`
+
+| Cambio | Detalle |
+|--------|---------|
+| Estado `error` | `const [error, setError] = useState('')` |
+| `handleDateFromChange` | Si `date > dateTo` (y dateTo no está vacío) → `setError('La fecha "Desde" no puede ser posterior a "Hasta"')` y no actualiza |
+| `handleDateToChange` | Si `date < dateFrom` (y dateFrom no está vacío) → `setError('La fecha "Hasta" no puede ser anterior a "Desde"')` y no actualiza |
+| `clearFilter` | `setError('')` |
+| UI | Texto rojo debajo del row de botones: `{error && <Text ...>{error}</Text>}` |
+| Borde rojo en botón "Hasta" | Si hay error, el botón "Hasta" se muestra con `border-red-400` |
+
+**Archivo:** `app/(tabs)/index.tsx`
+- Sin cambios (el filtro maneja todo internamente)
+
+Toggleame a **Act Mode** y lo implemento.
