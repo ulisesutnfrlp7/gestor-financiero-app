@@ -6,7 +6,7 @@
 // una query adicional a Firestore — principio de "single source of truth".
 
 import React from 'react'
-import { Alert } from 'react-native'
+import { View, Text, Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router, useLocalSearchParams } from 'expo-router'
 import { TransactionForm } from '@/components/transactions/TransactionForm'
@@ -16,9 +16,11 @@ import {
   deleteTransaction,
 } from '@/services/transactions.service'
 import type { TransactionFormData } from '@/types'
+import { isOnline } from '@/utils/network'
 
 export default function EditTransactionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
+  const error = useFinanceStore((state) => state.error)
 
   // Buscar el movimiento directamente en el store sin nueva query a Firestore
   const transaction = useFinanceStore((state) =>
@@ -27,6 +29,13 @@ export default function EditTransactionScreen() {
 
   const handleSubmit = async (data: TransactionFormData) => {
     if (!id) return
+
+    const online = await isOnline()
+    if (!online) {
+      Alert.alert('Sin conexión', 'Sin conexión a Internet. Verificá tu conexión.')
+      return
+    }
+
     await updateTransaction(id, data)
     Alert.alert('Éxito', 'Movimiento editado exitosamente.')
     router.back()
@@ -43,6 +52,11 @@ export default function EditTransactionScreen() {
           style: 'destructive',
           onPress: async () => {
             if (!id) return
+            const online = await isOnline()
+            if (!online) {
+              Alert.alert('Sin conexión', 'Sin conexión a Internet. Verificá tu conexión.')
+              return
+            }
             await deleteTransaction(id)
             Alert.alert('Éxito', 'Movimiento eliminado exitosamente.')
             router.back()
@@ -57,6 +71,11 @@ export default function EditTransactionScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50" edges={['bottom']}>
+      {error && (
+        <View className="mx-5 mt-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+          <Text className="text-red-600 text-sm text-center">{error}</Text>
+        </View>
+      )}
       <TransactionForm
         initialData={transaction}
         onSubmit={handleSubmit}

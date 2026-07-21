@@ -21,9 +21,11 @@ import {
 } from '@/services/categories.service'
 import { categorySchema, validateCategoryUniqueness } from '@/schemas/category.schema'
 import { ColorPicker } from './ColorPicker'
+import { isOnline } from '@/utils/network'
 
 export const CategoryManager = () => {
   const userId     = useFinanceStore((state) => state.userId)
+  const error      = useFinanceStore((state) => state.error)
   const allCategories = useFinanceStore(selectAllCategories)
   const transactions = useFinanceStore((state) => state.transactions)
   const incomeCategories = useMemo(
@@ -66,6 +68,12 @@ export const CategoryManager = () => {
       return
     }
 
+    const online = await isOnline()
+    if (!online) {
+      setNewError('Sin conexión a Internet. Verificá tu conexión.')
+      return
+    }
+
     setNewError('')
     setIsCreating(true)
     try {
@@ -96,6 +104,12 @@ export const CategoryManager = () => {
 
     const original = allCategories.find((c) => c.id === categoryId)
     if (!original) return
+
+    const online = await isOnline()
+    if (!online) {
+      setEditError('Sin conexión a Internet. Verificá tu conexión.')
+      return
+    }
 
     const dataWithType = { ...result.data, type: original.type }
     const uniqueness = validateCategoryUniqueness(dataWithType, allCategories, categoryId)
@@ -136,6 +150,11 @@ export const CategoryManager = () => {
           text: 'Eliminar',
           style: 'destructive',
           onPress: async () => {
+            const online = await isOnline()
+            if (!online) {
+              Alert.alert('Sin conexión', 'Sin conexión a Internet. Verificá tu conexión.')
+              return
+            }
             try {
               await deleteCategory(userId, categoryId)
               Alert.alert('Éxito', 'Categoría eliminada exitosamente.')
@@ -237,6 +256,16 @@ export const CategoryManager = () => {
 
   return (
     <ScrollView className="flex-1 px-5 pt-4" keyboardShouldPersistTaps="handled">
+      {/* Banner de error */}
+      {error && (
+        <View className="mb-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+          <Text className="text-red-600 text-sm text-center">{error}</Text>
+        </View>
+      )}
+      {/* Encabezado */}
+        <View className="px-0 py-2 mb-3">
+          <Text className="text-2xl font-bold text-gray-900">Categorías</Text>
+        </View>
       {/* Crear nueva categoría */}
       <View className="bg-white border border-gray-200 rounded-lg px-4 py-5 mb-6">
         <Text className="text-sm font-medium text-gray-700 mb-3">

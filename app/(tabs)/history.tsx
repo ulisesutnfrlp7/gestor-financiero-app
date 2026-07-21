@@ -17,6 +17,7 @@ export default function HistoryScreen() {
   const isLoading    = useFinanceStore((state) => state.isLoading)
   const userId       = useFinanceStore((state) => state.userId)
   const setTransactions = useFinanceStore((state) => state.setTransactions)
+  const error        = useFinanceStore((state) => state.error)
   const [refreshing, setRefreshing] = useState(false)
   const [filters, setFilters] = useState<Filters>({
     type: 'all',
@@ -82,6 +83,13 @@ export default function HistoryScreen() {
       <View className="px-5 pt-6 pb-2">
         <Text className="text-2xl font-bold text-gray-900">Historial de Movimientos</Text>
       </View>
+
+      {/* Banner de error */}
+      {error && (
+        <View className="mx-5 mt-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+          <Text className="text-red-600 text-sm text-center">{error}</Text>
+        </View>
+      )}
 
       {/* Filtros */}
       <TransactionFilters filters={filters} onChange={setFilters} />

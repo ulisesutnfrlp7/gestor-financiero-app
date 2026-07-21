@@ -3745,3 +3745,172 @@ Se completó la refactorización del componente CategoryManager (Opción B):
 - Los comentarios reflejan la realidad actual del componente
 - No hay referencias rotas en el código
 
+Necesito planear algo respecto a los errores por falta de wifi. Actualmente, al iniciar sesión (con el wifi y datos desactivados), el error que salta es "Firebase: Error (auth/network-request-failed)". Por otro lado, al querer hacer algo en la app, todo se queda con la ruedita cargando, pero no se avisa de nada al usuario. ¿Qué se puede hacer?
+
+Analicé todo el flujo. Hay **dos problemas distintos**:
+
+### Problema 1: Login sin conexión
+**Archivo:** `app/(auth)/login.tsx`
+
+El error `auth/network-request-failed` cae en el `else` genérico y muestra el mensaje crudo de Firebase. Es fácil de arreglar agregando un `else if`:
+
+```ts
+} else if (firebaseErr.code === 'auth/network-request-failed') {
+  setError('Sin conexión a Internet. Verificá tu conexión e intentá de nuevo.')
+}
+```
+
+### Problema 2: Spinner infinito en la app sin conexión
+
+Cuando no hay WiFi, el `useEffect` de `useTransactions.ts` llama a `subscribeToTransactions()` que intenta abrir un WebSocket a Firestore. Como nunca recibe respuesta:
+- `setLoading(true)` se ejecuta
+- El callback `onUpdate` nunca se llama → `isLoading` nunca cambia a `false`
+- La pantalla se queda con el spinner para siempre
+
+Además, `useCategories.ts` ignora los errores silenciosamente (`() => {}`).
+
+### Plan de solución
+
+| Archivo | Cambio |
+|---------|--------|
+| `app/(auth)/login.tsx` | Agregar catch para `auth/network-request-failed` |
+| `hooks/useTransactions.ts` | En el `onError`, setear `isLoading=false` y mostrar error (ya está implementado, pero no se dispara porque la suscripción no falla inmediatamente) |
+| `hooks/useCategories.ts` | Lo mismo: setear error en store en vez de silenciarlo |
+| `store/useFinanceStore.ts` | Sin cambios necesarios (ya tiene `error`) |
+| **Nuevo:** Componente global de error/banner | Podría ir en `app/_layout.tsx` para mostrar errores de red |
+
+### Enfoque recomendado (sin librerías externas)
+
+1. **Login**: Agregar el catch específico → mensaje amigable
+2. **Suscripciones**: El error callback de Firestore termina disparándose (puede tardar 30-60 segundos). Cuando lo hace, `setLoading(false)` y `setError()` se ejecutan. El problema es que el usuario espera mucho.
+3. **Solución práctica**: Agregar un **timeout** de 15 segundos en `useTransactions` y `useCategories`: si después de 15 segundos no hay respuesta, forzar `setLoading(false)` y `setError('Sin conexión a Internet')`.
+
+### Archivos a modificar (3)
+
+| Archivo | Cambio |
+|---------|--------|
+| `app/(auth)/login.tsx` | Catch `network-request-failed` |
+| `hooks/useTransactions.ts` | Timeout 15s + error de red |
+| `hooks/useCategories.ts` | Timeout 15s + error de red (en vez de silencio) |
+
+Toggleame a **Act Mode** y lo implemento.
+
+✅ **Manejo de errores de red implementado en 3 archivos.**
+
+### Cambios realizados
+
+| Archivo | Cambio |
+|---------|--------|
+| `app/(auth)/login.tsx` | Agregado `catch` para `auth/network-request-failed` → mensaje: *"Sin conexión a Internet. Verificá tu conexión e intentá de nuevo."* |
+| `hooks/useTransactions.ts` | Agregado timeout de 15 segundos. Si la suscripción a Firestore no responde, se saca el spinner y se guarda el error en el store |
+| `hooks/useCategories.ts` | Mismo timeout de 15 segundos. Se saca el spinner si no hay conexión |
+
+### Cómo funciona
+
+1. **Login sin WiFi**: Firebase lanza `auth/network-request-failed` → se muestra el banner rojo con el mensaje de error en español
+2. **App sin WiFi**: Al abrir la app sin conexión:
+   - Las suscripciones a Firestore intentan conectarse
+   - Si después de **15 segundos** no hay respuesta, el timeout se dispara
+   - Se detiene el spinner de carga
+   - Se guarda un error en el store: `"Sin conexión a Internet. Verificá tu conexión."`
+   - Las pantallas dejan de mostrar la ruedita girando
+
+**Nota:** El error se guarda en el store (`useFinanceStore` → `error`). Las pantallas (Dashboard, Historial) pueden leerlo con `useFinanceStore((state) => state.error)` para mostrar un banner de error cuando sea necesario.
+
+cómo veo si se implementaron los cambios? igualmente, no se estarían lanzando los nuevos errores.
+
+**Los cambios se implementaron correctamente** en los 3 archivos. El problema de que "no se lanzan los nuevos errores" es porque **guardamos el error en el store, pero ninguna pantalla lo muestra**.
+
+Actualmente:
+- `useTransactions.ts` → `setError('Sin conexión a Internet...')` ✅
+- `useCategories.ts` → `setError('Sin conexión a Internet...')` ✅
+- `app/(tabs)/index.tsx` → **nunca lee `state.error`** ❌
+
+### Solución
+
+Agregar en `app/(tabs)/index.tsx` un banner que lea `state.error` del store y lo muestre cuando no sea `null`:
+
+```tsx
+const error = useFinanceStore((state) => state.error)
+
+// En el JSX, debajo del encabezado:
+{error && (
+  <View className="mx-5 mt-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+    <Text className="text-red-600 text-sm text-center">{error}</Text>
+  </View>
+)}
+```
+
+Toggleame a **Act Mode** y lo agrego. También puedo agregarlo en `history.tsx` si hace falta.
+
+Claro. Yo, justamente, quiero eso, que en las pantallas que involucran las funcionalidades de la aplicación (alta, baja y modificación de movimientos, alta, baja y modificación de categorías y login) se muestren los errores correspondientes cuando no hay conexión a internet.
+
+✅ **Manejo de errores de red completo en todas las pantallas.**
+
+### Resumen de cambios (8 archivos)
+
+| Archivo | Cambio |
+|---------|--------|
+| `app/(auth)/login.tsx` | Catch `auth/network-request-failed` → mensaje amigable |
+| `hooks/useTransactions.ts` | Timeout 15s: si no responde, setea error en store |
+| `hooks/useCategories.ts` | Timeout 15s: si no responde, setea error en store |
+| `app/(tabs)/index.tsx` (Dashboard) | Banner rojo que lee `state.error` |
+| `app/(tabs)/history.tsx` (Historial) | Banner rojo que lee `state.error` |
+| `components/categories/CategoryManager.tsx` (Categorías) | Banner rojo que lee `state.error` |
+| `app/transaction/new.tsx` (Nuevo movimiento) | Banner rojo que lee `state.error` |
+| `app/transaction/[id].tsx` (Editar movimiento) | Banner rojo que lee `state.error` |
+
+### Cómo se comporta sin WiFi
+
+1. **Login**: Firebase devuelve `auth/network-request-failed` → muestra *"Sin conexión a Internet. Verificá tu conexión e intentá de nuevo."*
+2. **App sin conexión**: después de **15 segundos**, el timeout se dispara → `setError('Sin conexión a Internet. Verificá tu conexión.')` → aparece el banner rojo en todas las pantallas
+3. **Cuando vuelve el WiFi**: Firestore responde → `clearTimeout()` + `setError(null)` → el banner desaparece
+
+Perfecto el seteo del error para el login. Ahora bien, no ocurre lo mismo para las demás funcionalidades (una vez ya estamos dentro de nuestra cuenta). Lo que pasa es que como que se "guardan" las categorías / movimientos creados o editados provisionalmente, pero sigue cargando la ruedita para todo. Yo quiero que, directamente, cuando se intente crear, editar o eliminar y no se tenga acceso a internet, salten los mensajes de error.
+
+**Entiendo el problema.** Firebase Firestore tiene **persistencia offline** habilitada por defecto. Cuando no hay WiFi:
+
+1. `addDoc`, `updateDoc`, `deleteDoc` **NO lanzan error** — Firebase los guarda localmente e intenta sincronizar después
+2. El `catch` nunca se ejecuta → se muestra "Éxito" o la ruedita gira para siempre
+3. El usuario cree que se guardó, pero en realidad los datos quedan en un limbo local
+
+### Plan de solución
+
+Crear una utilidad simple que verifique conectividad antes de cada operación:
+
+| Archivo | Cambio |
+|---------|--------|
+| `utils/network.ts` | 🆕 Función `isOnline()` con fetch timeout de 3s |
+| `components/categories/CategoryManager.tsx` | Antes de crear/editar/eliminar, verificar conexión y mostrar alerta si offline |
+| `app/transaction/new.tsx` | Antes de enviar, verificar conexión |
+| `app/transaction/[id].tsx` | Antes de enviar/eliminar, verificar conexión |
+
+**Sin librerías externas.** Solo un `fetch` a un endpoint de Google con timeout. Funciona en iOS, Android y Web.
+
+Toggleame a **Act Mode** y lo implemento.
+
+✅ **Verificación de conexión antes de cada operación implementada.**
+
+### Archivos creados
+
+| Archivo | Contenido |
+|---------|-----------|
+| `utils/network.ts` | Función `isOnline()` que hace un HEAD request a Google con timeout de 5s |
+
+### Archivos modificados
+
+| Archivo | Operaciones protegidas |
+|---------|----------------------|
+| `components/categories/CategoryManager.tsx` | ✅ Crear, ✅ Editar, ✅ Eliminar categoría |
+| `app/transaction/new.tsx` | ✅ Crear movimiento |
+| `app/transaction/[id].tsx` | ✅ Editar movimiento, ✅ Eliminar movimiento |
+
+### Cómo funciona
+
+Antes de ejecutar cualquier operación (crear, editar, eliminar):
+
+1. Se llama a `isOnline()` que intenta un HEAD request a `google.com/generate_204`
+2. Si el servidor responde (hay conexión) → se ejecuta la operación normalmente
+3. Si no responde (timeout de 5s) → se muestra una alerta: **"Sin conexión a Internet. Verificá tu conexión."** y se cancela la operación
+
+Esto evita que Firebase guarde datos localmente sin que el usuario lo sepa.

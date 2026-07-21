@@ -20,6 +20,7 @@ import { DateRangeFilter } from '@/components/dashboard/DateRangeFilter'
 
 export default function DashboardScreen() {
   const transactions = useFinanceStore((state) => state.transactions)
+  const error = useFinanceStore((state) => state.error)
 
   // Estado para el filtro de fechas
   const [dateFrom, setDateFrom] = useState('')
@@ -92,6 +93,13 @@ export default function DashboardScreen() {
             <Ionicons name="log-out-outline" size={20} color="#6B7280" />
           </TouchableOpacity>
         </View>
+
+        {/* Banner de error */}
+        {error && (
+          <View className="mx-5 mt-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <Text className="text-red-600 text-sm text-center">{error}</Text>
+          </View>
+        )}
 
         {/* Filtro de fechas */}
         <DateRangeFilter

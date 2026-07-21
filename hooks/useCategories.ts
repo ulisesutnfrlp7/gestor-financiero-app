@@ -6,9 +6,13 @@ import { useEffect } from 'react'
 import { useFinanceStore } from '@/store/useFinanceStore'
 import { subscribeToCategories } from '@/services/categories.service'
 
+const NETWORK_TIMEOUT_MS = 15_000
+
 export const useCategories = (): void => {
   const userId        = useFinanceStore((state) => state.userId)
   const setCategories = useFinanceStore((state) => state.setCategories)
+  const setLoading    = useFinanceStore((state) => state.setLoading)
+  const setError      = useFinanceStore((state) => state.setError)
 
   useEffect(() => {
     if (!userId) {
@@ -16,14 +20,32 @@ export const useCategories = (): void => {
       return
     }
 
+    setLoading(true)
+
+    // Timeout: si no responde en N segundos, mostramos error de conexión
+    const timeoutId = setTimeout(() => {
+      setLoading(false)
+      setError('Sin conexión a Internet. Verificá tu conexión.')
+    }, NETWORK_TIMEOUT_MS)
+
     const unsubscribe = subscribeToCategories(
       userId,
-      (data) => setCategories(data),
+      (data) => {
+        clearTimeout(timeoutId)
+        setCategories(data)
+        setLoading(false)
+        setError(null)
+      },
       () => {
-        // Silently fail — las categorías no son críticas para la funcionalidad
+        clearTimeout(timeoutId)
+        setLoading(false)
+        // No mostramos error para categorías (no crítico), pero sacamos el loading
       }
     )
 
-    return () => unsubscribe()
-  }, [userId, setCategories])
+    return () => {
+      clearTimeout(timeoutId)
+      unsubscribe()
+    }
+  }, [userId, setCategories, setLoading, setError])
 }

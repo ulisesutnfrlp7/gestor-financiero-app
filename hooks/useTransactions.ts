@@ -13,6 +13,8 @@ import {
   fetchTransactions,
 } from '@/services/transactions.service'
 
+const NETWORK_TIMEOUT_MS = 15_000
+
 export const useTransactions = (): { refresh: () => Promise<void> } => {
   const userId       = useFinanceStore((state) => state.userId)
   const setTransactions = useFinanceStore((state) => state.setTransactions)
@@ -31,21 +33,35 @@ export const useTransactions = (): { refresh: () => Promise<void> } => {
     // Limpiar datos anteriores antes de suscribir al nuevo usuario
     setTransactions([])
     setLoading(true)
+    setError(null)
+
+    // Timeout: si después de N segundos la suscripción no respondió,
+    // asumimos que no hay conexión y mostramos error
+    const timeoutId = setTimeout(() => {
+      setLoading(false)
+      setError('Sin conexión a Internet. Verificá tu conexión.')
+    }, NETWORK_TIMEOUT_MS)
 
     const unsubscribe = subscribeToTransactions(
       userId,
       (data) => {
+        clearTimeout(timeoutId)
         setTransactions(data)
         setLoading(false)
+        setError(null)
       },
       (err) => {
+        clearTimeout(timeoutId)
         setError(err.message)
         setLoading(false)
       }
     )
 
     // Cleanup: cierra el WebSocket de Firestore al desmontar el componente
-    return () => unsubscribe()
+    return () => {
+      clearTimeout(timeoutId)
+      unsubscribe()
+    }
   }, [userId, setTransactions, setLoading, setError])
 
   // Función para refrescar manualmente (pull-to-refresh)

@@ -25,6 +25,8 @@ export default function LoginScreen() {
         setError('Email o contraseña incorrectos')
       } else if (firebaseErr.code === 'auth/invalid-email') {
         setError('Email inválido')
+      } else if (firebaseErr.code === 'auth/network-request-failed') {
+        setError('Sin conexión a Internet. Verificá tu conexión e intentá de nuevo.')
       } else {
         setError(firebaseErr.message ?? 'Error al iniciar sesión')
       }
