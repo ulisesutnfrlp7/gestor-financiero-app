@@ -800,3 +800,98 @@ inguna sobrecarga coincide con esta llamada.
 [gestureHandlerCommon.d.ts(73, 5):]()El tipo esperado procede de la propiedad "onActivated", que se declara aquí en el tipo "IntrinsicAttributes & TapGestureHandlerProps & RefAttributes<any>"
 
 No gastes tokens en vano.
+
+# CONVERSACIÓN 21/07/2026
+
+Planeemos esta nueva funcionalidad:
+
+| **Exportar a PDF** | Descargar movimientos como archivo PDF |
+
+El botón de exportación debe encontrarse al final de la tab "Historial de Movimientos", según el filtro que esté aplicado en el momento (tanda de movimientos por descripción, Todos, solo gastos, solo ingresos, fechas desde hasta, categorías, combinaciones de ellos, etc).
+
+Se necesita, de cada movimiento, básicamente lo que está plasmado en el historial: tipo, monto, descripción, categoría, fecha.
+
+Arma un PDF profesional, agradable a la vista y siguiendo la paleta de colores de la aplicación.
+
+No gastes tokens en vano.
+
+Lista de tareas pendientes actualizada
+
+Explore history and filters
+
+Read [](file:///c%3A/Users/tauma/OneDrive/Escritorio/repo-gestor-financiero-app/gestor-financiero-app/app/%28tabs%29/history.tsx)
+
+Read [](file:///c%3A/Users/tauma/OneDrive/Escritorio/repo-gestor-financiero-app/gestor-financiero-app/components/transactions/TransactionFilters.tsx)
+
+Read [](file:///c%3A/Users/tauma/OneDrive/Escritorio/repo-gestor-financiero-app/gestor-financiero-app/constants/colors.ts)
+
+Read [](file:///c%3A/Users/tauma/OneDrive/Escritorio/repo-gestor-financiero-app/gestor-financiero-app/types/index.ts)
+
+Read [](file:///c%3A/Users/tauma/OneDrive/Escritorio/repo-gestor-financiero-app/gestor-financiero-app/utils/formatters.ts)
+
+Read [](file:///c%3A/Users/tauma/AppData/Roaming/Code/User/workspaceStorage/32cc5d0c734c914acf7d737047b5f7c3/GitHub.copilot-chat/chat-session-resources/58d4bb33-581d-49c4-ba47-b77bb1932498/toolu_bdrk_01BLHHU3Ku9q4P4ePRE8QYAM__vscode-1784669425617/content.txt#1-1), lines 1 to 300
+
+Read [](file:///c%3A/Users/tauma/AppData/Roaming/Code/User/workspaceStorage/32cc5d0c734c914acf7d737047b5f7c3/GitHub.copilot-chat/chat-session-resources/58d4bb33-581d-49c4-ba47-b77bb1932498/toolu_bdrk_01BLHHU3Ku9q4P4ePRE8QYAM__vscode-1784669425617/content.txt#300-300), lines 300 to 500
+
+No matches found. Your search pattern might be excluded completely by either the search.exclude settings or .*ignore files.
+If you believe that it should have results, you can check into the .*ignore files and the exclude setting (here are some excluded patterns for reference:[**/node_modules,**/bower_components,**/*.code-search,**/.dart_tool]).
+Then if you want to include those files you can call the tool again by setting "includeIgnoredFiles" to true.
+
+Tengo todo el contexto. Armando el plan. 
+
+Created memory file [](file:///c%3A/Users/tauma/AppData/Roaming/Code/User/workspaceStorage/32cc5d0c734c914acf7d737047b5f7c3/GitHub.copilot-chat/memory-tool/memories/NThkNGJiMzMtNTgxZC00OWM0LWJhNDctYjc3YmIxOTMyNDk4/plan.md)
+
+## Plan: Exportar Historial a PDF
+
+`expo-print` convierte HTML a PDF en el dispositivo. `expo-sharing` abre el share sheet nativo (guardar en Archivos, Drive, etc.). Cero rebuild nativo — ambos son paquetes del SDK de Expo.
+
+---
+
+**Fase 1 — Instalación**
+1. `npx expo install expo-print expo-sharing`
+
+**Fase 2 — `utils/exportPdf.ts` (archivo nuevo)**
+
+2. `buildFilterSummary(filters, categories)` → string legible: *"Gastos · Comida · 01/07 → 21/07"*
+3. `buildHtmlTemplate(transactions, categories, filters, formatCurrency, formatDate)` → HTML con:
+   - Header `#4F46E5` con título "Gestor Financiero" + fecha de generación
+   - Fila de resumen de filtros activos
+   - 4 tarjetas: **Total Ingresos** / **Total Gastos** / **Balance** / **N° Movimientos**
+   - Tabla: Fecha · Descripción · Categoría · Tipo · Monto
+     - Filas income → bg `#F0FDF4`, monto `#16A34A`
+     - Filas expense → bg `#FEF2F2`, monto `#DC2626`
+   - Footer con timestamp
+4. `exportTransactionsPdf(transactions, categories, filters, formatCurrency, formatDate)`:
+   - `Print.printToFileAsync({ html })` → uri temporal
+   - `Sharing.shareAsync(uri, { mimeType: 'application/pdf' })`
+
+**Fase 3 — history.tsx**
+
+5. Importar `exportTransactionsPdf`, `selectAllCategories` del store, `ActivityIndicator`
+6. Añadir `isExporting` state
+7. `handleExport()` → llama a `exportTransactionsPdf` con try/catch + `Alert` en error
+8. `View` debajo de `TransactionList` con botón indigo:
+   - Label: *"Exportar PDF (N movimientos)"*
+   - Deshabilitado si `filteredTransactions.length === 0` o `isExporting`
+   - `paddingBottom: 96` para no quedar detrás del FAB existente
+
+---
+
+**Archivos a tocar**
+- `utils/exportPdf.ts` — nuevo
+- app/(tabs)/history.tsx/history.tsx) — botón + handler (±25 líneas)
+
+**Verificación**
+1. Filtrar "solo gastos + categoría Comida" → exportar → PDF muestra solo esos movimientos y el header refleja los filtros
+2. Sin filtros → PDF con todos los movimientos
+3. Lista vacía (`filteredTransactions.length === 0`) → botón visible pero deshabilitado
+4. Share sheet nativo abre en Android e iOS
+
+**Decisiones**
+- `expo-print` + HTML en lugar de una librería de PDF más pesada — el HTML da control total sobre el diseño y el resultado es pixel-perfect
+- Botón fijo al pie (no dentro del FlatList como `ListFooterComponent`) para visibilidad constante; el `paddingBottom` del `ScrollView` interno de `TransactionList` no necesita modificarse
+- No se toca `TransactionList` ni `TransactionFilters`
+
+¿Aprobás el plan?
+
+Se han creado 3 tareas pendientes

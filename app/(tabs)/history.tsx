@@ -3,14 +3,16 @@
 // (el orden lo maneja la query de Firestore, no el cliente).
 
 import React, { useState, useCallback, useMemo } from 'react'
-import { View, Text, TouchableOpacity, Alert } from 'react-native'
+import { View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { useFinanceStore } from '@/store/useFinanceStore'
+import { useFinanceStore, selectAllCategories } from '@/store/useFinanceStore'
 import { TransactionList } from '@/components/transactions/TransactionList'
 import { TransactionFilters, type Filters } from '@/components/transactions/TransactionFilters'
 import { deleteTransaction, fetchTransactions } from '@/services/transactions.service'
+import { exportTransactionsPdf } from '@/utils/exportPdf'
+import { isOnline } from '@/utils/network'
 
 export default function HistoryScreen() {
   const transactions = useFinanceStore((state) => state.transactions)
@@ -18,7 +20,9 @@ export default function HistoryScreen() {
   const userId       = useFinanceStore((state) => state.userId)
   const setTransactions = useFinanceStore((state) => state.setTransactions)
   const error        = useFinanceStore((state) => state.error)
+  const allCategories = useFinanceStore(selectAllCategories)
   const [refreshing, setRefreshing] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   const [filters, setFilters] = useState<Filters>({
     type: 'all',
     category: '',
@@ -54,6 +58,11 @@ export default function HistoryScreen() {
           text: 'Eliminar',
           style: 'destructive',
           onPress: async () => {
+            const online = await isOnline()
+            if (!online) {
+              Alert.alert('Sin conexión', 'Sin conexión a Internet. Verificá tu conexión.')
+              return
+            }
             await deleteTransaction(id)
             Alert.alert('Éxito', 'Movimiento eliminado exitosamente.')
           },
@@ -104,6 +113,38 @@ export default function HistoryScreen() {
         refreshing={refreshing}
         onRefresh={handleRefresh}
       />
+
+      {/* Botón exportar PDF */}
+      <View className="px-5 py-3 bg-white border-t border-gray-200" style={{ paddingBottom: 96 }}>
+        <TouchableOpacity
+          onPress={async () => {
+            setIsExporting(true)
+            try {
+              await exportTransactionsPdf(filteredTransactions, allCategories, filters)
+            } catch (e) {
+              Alert.alert('Error', 'No se pudo generar el PDF. Intentá de nuevo.')
+            } finally {
+              setIsExporting(false)
+            }
+          }}
+          disabled={isExporting || filteredTransactions.length === 0}
+          className={`flex-row items-center justify-center rounded-xl py-3.5 mt-2 gap-2 ${
+            filteredTransactions.length === 0 ? 'bg-gray-200' : 'bg-indigo-600'
+          }`}
+          accessibilityLabel="Exportar PDF"
+        >
+          {isExporting
+            ? <ActivityIndicator size="small" color="white" />
+            : <Ionicons name="document-text-outline" size={18} color={filteredTransactions.length === 0 ? '#9CA3AF' : 'white'} />}
+          <Text className={`font-semibold text-sm ${
+            filteredTransactions.length === 0 ? 'text-gray-400' : 'text-white'
+          }`}>
+            {isExporting
+              ? 'Generando PDF...'
+              : `Exportar PDF (${filteredTransactions.length} movimiento${filteredTransactions.length !== 1 ? 's' : ''})`}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {/* FAB */}
       <TouchableOpacity
