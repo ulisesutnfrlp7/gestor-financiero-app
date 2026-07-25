@@ -8,6 +8,7 @@ import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { createUserProfile } from '@/services/users.service'
 import { AuthForm } from '@/components/auth/AuthForm'
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
 import { registerSchema } from '@/schemas/auth.schema'
 
 export default function RegisterScreen() {
@@ -67,6 +68,15 @@ export default function RegisterScreen() {
           </Text>
         </TouchableOpacity>
       </AuthForm>
+
+      {/* Separador */}
+      <View className="flex-row items-center my-5 px-6">
+        <View className="flex-1 h-px bg-gray-200" />
+        <Text className="mx-4 text-gray-400 text-sm">O registrate con</Text>
+        <View className="flex-1 h-px bg-gray-200" />
+      </View>
+
+      <GoogleSignInButton mode="register" />
     </KeyboardAvoidingView>
   )
 }

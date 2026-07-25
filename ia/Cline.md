@@ -4521,3 +4521,277 @@ if (recurringTemplate) {
 El resto del flujo continúa normal después del Alert. Esto muestra el aviso informativo sin bloquear el guardado, educando al usuario de que si quiere un movimiento de una sola vez, debe crearlo desde el formulario de nuevo movimiento (`/transaction/new`).
 
 ¿Te parece bien? Si aprobás, pasame a Act Mode para implementarlo.
+
+Se agregó un `Alert.alert` en `components/transactions/TransactionForm.tsx` dentro de la función `onFormSubmit`. Cuando el usuario presiona "Guardar Plantilla" (es decir, cuando está editando una plantilla recurrente existente), se muestra el aviso:
+
+> **Movimiento Recurrente**
+> No podés hacer que un movimiento recurrente vuelva a ser de una vez. Crea el movimiento de manera natural a través del formulario de creación.
+
+El Alert es informativo y no bloquea el guardado — la plantilla se actualiza igual después de cerrarlo.
+
+hay un pequeño error. el alert funciona perfectamente cuando se intenta una configuración de movimiento recurrente "Una vez", pero también funciona cuando se quiere editar un recurrente de manera normal. El mensaje se tendría que mostrar nada más en el primer caso.
+
+Entiendo el problema. La condición actual solo verifica si `recurringTemplate` existe, lo que hace que el Alert se dispare en TODAS las ediciones de una plantilla recurrente. Pero debería dispararse solo cuando el usuario **cambia de "Recurrente" a "Una vez"** dentro de la edición de una plantilla.
+
+La solución es agregar la condición `!data.isRecurring` (es decir, solo mostrar el Alert si el usuario desactivó el toggle "Recurrente"):
+
+```tsx
+if (recurringTemplate && !data.isRecurring) {
+  Alert.alert(
+    'Movimiento Recurrente',
+    'No podés hacer que un movimiento recurrente vuelva a ser de una vez. Crea el movimiento de manera natural a través del formulario de creación.'
+  )
+}
+```
+
+Así:
+- Si el usuario edita una plantilla recurrente y la guarda sin cambios en el toggle → **no muestra Alert** (bien)
+- Si el usuario edita una plantilla recurrente y cambia el toggle a "Una vez" → **muestra Alert** (correcto)
+
+¿Te parece? Si está bien, pasame a Act Mode para aplicar el cambio.
+
+Se corrigió la condición en `components/transactions/TransactionForm.tsx`: ahora el Alert solo se muestra cuando el usuario está editando una plantilla recurrente (`recurringTemplate` existe) **y además** cambió el toggle a "Una vez" (`!data.isRecurring`). Si solo está editando los datos de la plantilla sin desactivar la recurrencia, el Alert no aparece.
+
+Planeemos la funcionalidad en el inicio de sesión para poder continuar con google. Tiene que estar presente tanto en el inicio de sesión como en crear cuenta.
+
+Ya tengo claro el estado actual del auth. Te presento el plan para agregar "Continuar con Google" en login y registro.
+
+## Plan de implementación
+
+### 1. Instalar dependencia
+`@react-native-google-signin/google-signin` — es la librería oficial de Google para React Native, compatible con Expo SDK 54.
+
+### 2. Configurar Google Sign-In
+En `app/_layout.tsx`, agregar la configuración de Google Sign-In con el `webClientId` (ID de cliente Web de Firebase Console) usando variables de entorno.
+
+### 3. Crear componente `GoogleSignInButton`
+Un botón reutilizable con ícono de Google que:
+- Muestra "Continuar con Google"
+- Maneja el flujo completo: Google Sign-In → obtener token → crear credential de Firebase → `signInWithCredential`
+- Maneja errores específicos (play services no disponibles, cuenta no seleccionada, etc.)
+- Prop `mode?: 'login' | 'register'` para saber si debe crear perfil en Firestore
+
+### 4. Agregar a `login.tsx` y `register.tsx`
+- Un separador visual "O continuar con" entre el formulario y el botón de Google
+- El `GoogleSignInButton` debajo del separador
+- En `register.tsx`, después del Google Sign-In exitoso, llamar a `createUserProfile` si es un usuario nuevo
+
+### 5. Manejo de errores
+- Google Play Services no disponibles
+- Cuenta no seleccionada por el usuario
+- Error de red
+- Email ya registrado (en registro)
+
+### Archivos a modificar/crear:
+| Archivo | Acción |
+|---------|--------|
+| `package.json` | Agregar dependencia |
+| `app/_layout.tsx` | Configurar GoogleSignin |
+| `components/auth/GoogleSignInButton.tsx` | **Nuevo** - Botón reutilizable |
+| `app/(auth)/login.tsx` | Agregar botón Google |
+| `app/(auth)/register.tsx` | Agregar botón Google |
+| `.env.example` | Agregar `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` |
+
+### Variables de entorno necesarias:
+```
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=xxxxx.apps.googleusercontent.com
+```
+
+Este ID se obtiene de Firebase Console → Project Settings → General → Your apps → Web SDK configuration → `clientId`.
+
+¿Te parece bien el plan? Si querés que ajuste algo o si preferís otro enfoque, decime. Cuando estés conforme, pasame a Act Mode para implementarlo.
+
+variable de entorno agregada, tanto en .env como en .env.example, y librería instalada. Procedé con el armado.
+
+Se implementó "Continuar con Google" en login y registro. Resumen de cambios:
+
+1. **`app/_layout.tsx`**: Se agregó `GoogleSignin.configure()` con el `webClientId` desde la variable de entorno.
+
+2. **`components/auth/GoogleSignInButton.tsx`** (nuevo): Botón reutilizable con:
+   - Ícono de Google y texto "Continuar con Google"
+   - Flujo completo: Google Sign-In → obtener idToken → crear credential de Firebase → `signInWithCredential`
+   - En modo `'register'`, crea automáticamente el perfil en Firestore con `createUserProfile`
+   - Manejo de errores: cancelación del usuario, Play Services no disponibles, cuenta existente con otro método
+
+3. **`app/(auth)/login.tsx`**: Se agregó el botón Google debajo del formulario con un separador visual "O continuá con".
+
+4. **`app/(auth)/register.tsx`**: Se agregó el botón Google debajo del formulario con separador "O registrate con".
+
+ WARN  Route "./(auth)/login.tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./(auth)/register.tsx" is missing the required default export. Ensure a React component is exported as default.
+ ERROR  [Invariant Violation: TurboModuleRegistry.getEnforcing(...): 'RNGoogleSignin' could not be found. Verify that a module by this name is registered in the native binary.]
+
+Call Stack
+  invariant (node_modules\invariant\browser.js)
+  getEnforcing (node_modules\react-native\Libraries\TurboModule\TurboModuleRegistry.js)
+  <global> (node_modules\@react-native-google-signin\google-signin\lib\module\spec\NativeGoogleSignin.js)
+  loadModuleImplementation (node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (node_modules\@react-native-google-signin\google-signin\lib\module\signIn\GoogleSignin.js)
+  loadModuleImplementation (node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (node_modules\@react-native-google-signin\google-signin\lib\module\index.js)
+  loadModuleImplementation (node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (components\auth\GoogleSignInButton.tsx)
+  loadModuleImplementation (node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (app\(auth)\login.tsx)
+  loadModuleImplementation (node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\@expo\cli\build\metro-require\require.js)
+  Object.defineProperties$argument_1.authLoginTsx.get (app)
+  metroContext (app)
+  node.loadRoute (node_modules\expo-router\build\getRoutesCore.js)
+  getDirectoryTree (node_modules\expo-router\build\getRoutesCore.js)
+  getDirectoryTree (node_modules\expo-router\build\getRoutesCore.js)
+  getRoutes (node_modules\expo-router\build\getRoutesCore.js)
+  getRoutes (node_modules\expo-router\build\getRoutes.js)
+  useStore (node_modules\expo-router\build\global-state\router-store.js)
+  ContextNavigator (node_modules\expo-router\build\ExpoRoot.js)
+  callComponent.reactStackBottomFrame (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  renderWithHooks (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  updateFunctionComponent (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  beginWork (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  runWithFiberInDEV (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performUnitOfWork (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  workLoopSync (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  renderRootSync (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performWorkOnRoot (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performWorkOnRootViaSchedulerTask (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+
+Call Stack
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  ExpoRoot (node_modules\expo-router\build\ExpoRoot.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  App (node_modules\expo-router\build\qualified-entry.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  WithDevTools (node_modules\expo\src\launch\withDevTools.tsx)
+ ERROR  [Invariant Violation: TurboModuleRegistry.getEnforcing(...): 'RNGoogleSignin' could not be found. Verify that a module by this name is registered in the native binary.]
+
+Call Stack
+  invariant (node_modules\invariant\browser.js)
+  getEnforcing (node_modules\react-native\Libraries\TurboModule\TurboModuleRegistry.js)
+  <global> (node_modules\@react-native-google-signin\google-signin\lib\module\spec\NativeGoogleSignin.js)
+  loadModuleImplementation (node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (node_modules\@react-native-google-signin\google-signin\lib\module\signIn\GoogleSignin.js)
+  loadModuleImplementation (node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (node_modules\@react-native-google-signin\google-signin\lib\module\index.js)
+  loadModuleImplementation (node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (components\auth\GoogleSignInButton.tsx)
+  loadModuleImplementation (node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (app\(auth)\login.tsx)
+  loadModuleImplementation (node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\@expo\cli\build\metro-require\require.js)
+  Object.defineProperties$argument_1.authLoginTsx.get (app)
+  metroContext (app)
+  node.loadRoute (node_modules\expo-router\build\getRoutesCore.js)
+  getDirectoryTree (node_modules\expo-router\build\getRoutesCore.js)
+  getDirectoryTree (node_modules\expo-router\build\getRoutesCore.js)
+  getRoutes (node_modules\expo-router\build\getRoutesCore.js)
+  getRoutes (node_modules\expo-router\build\getRoutes.js)
+  useStore (node_modules\expo-router\build\global-state\router-store.js)
+  ContextNavigator (node_modules\expo-router\build\ExpoRoot.js)
+  callComponent.reactStackBottomFrame (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  renderWithHooks (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  updateFunctionComponent (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  beginWork (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  runWithFiberInDEV (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performUnitOfWork (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  workLoopSync (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  renderRootSync (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performWorkOnRoot (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performWorkOnRootViaSchedulerTask (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+
+Call Stack
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  ExpoRoot (node_modules\expo-router\build\ExpoRoot.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  App (node_modules\expo-router\build\qualified-entry.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  WithDevTools (node_modules\expo\src\launch\withDevTools.tsx)
+ WARN  Route "./_layout.tsx" is missing the required default export. Ensure a React component is exported as default.
+ ERROR  [Invariant Violation: TurboModuleRegistry.getEnforcing(...): 'RNGoogleSignin' could not be found. Verify that a module by this name is registered in the native binary.]
+
+Call Stack
+  invariant (node_modules\invariant\browser.js)
+  getEnforcing (node_modules\react-native\Libraries\TurboModule\TurboModuleRegistry.js)
+  <global> (node_modules\@react-native-google-signin\google-signin\lib\module\spec\NativeGoogleSignin.js)
+  loadModuleImplementation (node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (node_modules\@react-native-google-signin\google-signin\lib\module\signIn\GoogleSignin.js)
+  loadModuleImplementation (node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (node_modules\@react-native-google-signin\google-signin\lib\module\index.js)
+  loadModuleImplementation (node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (components\auth\GoogleSignInButton.tsx)
+  loadModuleImplementation (node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (app\(auth)\login.tsx)
+  loadModuleImplementation (node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\@expo\cli\build\metro-require\require.js)
+  Object.defineProperties$argument_1.authLoginTsx.get (app)
+  metroContext (app)
+  node.loadRoute (node_modules\expo-router\build\getRoutesCore.js)
+  getDirectoryTree (node_modules\expo-router\build\getRoutesCore.js)
+  getDirectoryTree (node_modules\expo-router\build\getRoutesCore.js)
+  getRoutes (node_modules\expo-router\build\getRoutesCore.js)
+  getRoutes (node_modules\expo-router\build\getRoutes.js)
+  useStore (node_modules\expo-router\build\global-state\router-store.js)
+  ContextNavigator (node_modules\expo-router\build\ExpoRoot.js)
+  callComponent.reactStackBottomFrame (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  renderWithHooks (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  updateFunctionComponent (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  beginWork (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  runWithFiberInDEV (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performUnitOfWork (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  workLoopSync (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  renderRootSync (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performWorkOnRoot (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performWorkOnRootViaSchedulerTask (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+
+Call Stack
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  ExpoRoot (node_modules\expo-router\build\ExpoRoot.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  App (node_modules\expo-router\build\qualified-entry.js)
+  call (<native>)
+  apply (<native>)
+  <anonymous> (node_modules\react-native-css-interop\dist\runtime\wrap-jsx.js)
+  WithDevTools (node_modules\expo\src\launch\withDevTools.tsx)
+

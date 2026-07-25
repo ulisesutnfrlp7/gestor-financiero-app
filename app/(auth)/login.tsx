@@ -7,6 +7,7 @@ import { router } from 'expo-router'
 import { signInWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { AuthForm } from '@/components/auth/AuthForm'
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
 import { loginSchema } from '@/schemas/auth.schema'
 
 export default function LoginScreen() {
@@ -69,6 +70,15 @@ export default function LoginScreen() {
           </Text>
         </TouchableOpacity>
       </AuthForm>
+
+      {/* Separador */}
+      <View className="flex-row items-center my-5 px-6">
+        <View className="flex-1 h-px bg-gray-200" />
+        <Text className="mx-4 text-gray-400 text-sm">O continuá con</Text>
+        <View className="flex-1 h-px bg-gray-200" />
+      </View>
+
+      <GoogleSignInButton mode="login" />
     </KeyboardAvoidingView>
   )
 }
