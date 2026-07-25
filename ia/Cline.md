@@ -4617,3 +4617,191 @@ Se implementó "Continuar con Google" en login y registro. Resumen de cambios:
 
 4. **`app/(auth)/register.tsx`**: Se agregó el botón Google debajo del formulario con separador "O registrate con".
 
+dónde ubico mi archivo google-services.json?
+
+En un proyecto Expo managed con EAS Build, el `google-services.json` se ubica en la **raíz del proyecto** y se referencia en `app.json`.
+
+## Pasos
+
+1. **Descargar** `google-services.json` desde Firebase Console:
+   - Firebase Console → Project Settings → General → Your apps → Android → `google-services.json`
+
+2. **Copiarlo** a la raíz del proyecto:
+   ```
+   gestor-financiero-app/
+   ├── google-services.json   ← acá
+   ├── app.json
+   ├── ...
+   ```
+
+3. **Agregar la referencia** en `app.json` en la sección `android`:
+   ```json
+   "android": {
+     "package": "com.tuempresa.gestorfinanciero",
+     "googleServicesFile": "./google-services.json"
+   }
+   ```
+
+Eso es suficiente para que EAS Build lo use al generar el APK/IPA. El plugin `@react-native-google-signin/google-signin` que ya está en `plugins` lo leerá automáticamente.
+
+**Importante**: No olvides agregar `google-services.json` al `.gitignore` si contiene información sensible, o manejarlo con variables de entorno en EAS Secrets si el repo es público.
+
+uh claro. me quedó subido al github
+
+Veo que `google-services.json` ya está en el directorio y `app.json` ya tiene la referencia. Lo que falta es:
+
+1. **Agregarlo al `.gitignore`** para que no se vuelva a subir
+2. **Eliminarlo del tracking de git** si ya se subió (con `git rm --cached`)
+
+¿Querés que lo haga? Si estás de acuerdo, pasame a Act Mode y me encargo de:
+- Agregar `google-services.json` al `.gitignore`
+- Verificar si ya está en el repo y sacarlo del tracking sin borrar el archivo local
+
+pero si se hace eso no complica al deploy?
+
+Buena pregunta. Con **EAS Build** no hay problema porque EAS tiene su propio sistema de manejo de archivos sensibles. El flujo correcto es:
+
+1. **Local**: el archivo `google-services.json` está en tu máquina (ya lo tenés)
+2. **GitHub**: ignorado con `.gitignore` → no se sube
+3. **EAS Build**: se lo pasás como **EAS Secret**, y EAS lo crea automáticamente en el build sin necesidad de que esté en el repo
+
+Así no se complica el deploy, y mantenés el archivo fuera del repo público.
+
+Los pasos serían:
+
+1. Agregar `google-services.json` al `.gitignore`
+2. Sacarlo del tracking de git (solo el índice, no el archivo)
+3. Subirlo como **EAS Secret** con:
+   ```
+   eas secret:create --scope project --name GOOGLE_SERVICES_JSON --value "$(cat google-services.json)"
+   ```
+4. En `eas.json`, en la sección de build, configurar que use ese secret como `google-services.json` en la raíz
+
+¿Te parece? Si querés, pasame a Act Mode para hacer los puntos 1 y 2 (lo de EAS Secrets sería después cuando configures el build).
+
+ulises@Ulises MINGW64 ~/OneDrive/Escritorio/repo-gestor-financiero-app/gestor-financiero-app (main)
+$ git rm --cached google-services.json
+rm 'google-services.json'
+
+ulises@Ulises MINGW64 ~/OneDrive/Escritorio/repo-gestor-financiero-app/gestor-financiero-app (main)
+$ eas secret:create --scope project --name GOOGLE_SERVICES_JSON --value "$(cat google-services.json)"
+★ eas-cli@21.2.0 is now available.
+To upgrade, run:
+npm install -g eas-cli
+Proceeding with outdated version.
+
+This command is deprecated. Use eas env:create instead.
+
+√ Select secret type » string
+√ Created a new secret GOOGLE_SERVICES_JSON with value {
+  "project_info": {
+    "project_number": "33659497492",
+    "project_id": "gestor-financiero-app-umb",
+    "storage_bucket": "gestor-financiero-app-umb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:33659497492:android:35ccf04859c686cfaa0b01",
+        "android_client_info": {
+          "package_name": "com.tuempresa.gestorfinanciero"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "33659497492-flhj4dk9ab3g6u2i50i3m8i1osln2r1b.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCXZjbDiwU8kccAQeOavQ-3Ozuzg2p6VRA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "33659497492-flhj4dk9ab3g6u2i50i3m8i1osln2r1b.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+} on project @uliedlp7/gestor-financiero-app.
+
+que faltaría?
+
+Ya está casi todo listo. Lo que falta es configurar `eas.json` para que use ese secret durante el build. Como `google-services.json` es un archivo (no una variable de entorno), necesitás indicarle a EAS que lo genere a partir del secret.
+
+Agregá en `eas.json` la sección `"env"` en cada perfil de build que uses, y un **hook pre-build** que escriba el archivo.
+
+**Opción recomendada (más simple):** Agregar en `eas.json`:
+
+```json
+{
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "GOOGLE_SERVICES_JSON": "GOOGLE_SERVICES_JSON"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "GOOGLE_SERVICES_JSON": "GOOGLE_SERVICES_JSON"
+      }
+    }
+  }
+}
+```
+
+Y después crear un archivo `scripts/write-google-services.js` que se ejecute antes del build:
+
+```js
+// scripts/write-google-services.js
+const fs = require('fs')
+const path = require('path')
+
+if (process.env.GOOGLE_SERVICES_JSON) {
+  fs.writeFileSync(
+    path.join(__dirname, '..', 'google-services.json'),
+    process.env.GOOGLE_SERVICES_JSON
+  )
+}
+```
+
+Y referenciarlo en `app.json` con un plugin `expo-build-properties` o un hook.
+
+**Pero hay una alternativa más simple aún:** Como ya tenés el archivo localmente y EAS Build lo empaqueta desde tu máquina, **no necesitás nada más** para builds locales. El secret en EAS solo es necesario si después querés hacer builds desde GitHub Actions (CI/CD).
+
+En resumen:
+- Para build local (`eas build --platform android --profile preview`): ya funciona, EAS toma el archivo de tu máquina
+- Para CI/CD (GitHub Actions): necesitás configurar el hook
+
+¿Querés que configure el hook para CI/CD o por ahora con builds locales estás bien?
+
+todo listo. 1 cosa antes que está ocurriendo:
+
+* Cuando quiero continuar con google, en un principio, me dejó seleccionar la cuenta. Ahora, cada vez que inicio sesión "continuar con google", no me permite seleccionar la cuenta, directamente entra con la que se utilizó para el registro. Eso no está bueno.
+
+Eso es comportamiento normal de Google Sign-In: una vez que autorizaste una cuenta, Google la recuerda y no vuelve a preguntar. Para forzar que siempre muestre el selector de cuentas, hay que llamar a `GoogleSignin.signOut()` antes de `GoogleSignin.signIn()`.
+
+El cambio es mínimo en `components/auth/GoogleSignInButton.tsx`:
+
+```tsx
+// Cerrar sesión previa para forzar el selector de cuentas
+await GoogleSignin.signOut()
+const userInfo = await GoogleSignin.signIn()
+```
+
+¿Querés que lo implemente? Pasame a Act Mode y lo hago.
+
+Se agregó `await GoogleSignin.signOut()` justo antes de `GoogleSignin.signIn()` en `components/auth/GoogleSignInButton.tsx`. Esto fuerza a Google a mostrar el selector de cuentas cada vez que se toca el botón "Continuar con Google", en lugar de usar automáticamente la última cuenta utilizada.

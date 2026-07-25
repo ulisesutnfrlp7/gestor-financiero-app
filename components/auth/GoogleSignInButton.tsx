@@ -27,6 +27,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({ mode }) 
         GoogleSignin: {
           configure: (config: { webClientId: string }) => void
           hasPlayServices: (opts: { showPlayServicesUpdateDialog: boolean }) => Promise<void>
+          signOut: () => Promise<void>
           signIn: () => Promise<{ data?: { idToken?: string } }>
         }
         statusCodes: {
@@ -41,6 +42,8 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({ mode }) 
       })
 
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true })
+      // Cerrar sesión previa para forzar el selector de cuentas
+      await GoogleSignin.signOut()
       const userInfo = await GoogleSignin.signIn()
       const idToken = userInfo.data?.idToken
 
