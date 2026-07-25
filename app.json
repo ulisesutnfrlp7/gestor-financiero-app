@@ -19,7 +19,7 @@
     },
     "android": {
       "package": "com.tuempresa.gestorfinanciero",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "@GOOGLE_SERVICES_JSON"
     },
     "web": {
       "bundler": "metro",
