@@ -4616,3 +4616,4 @@ Se implementó "Continuar con Google" en login y registro. Resumen de cambios:
 3. **`app/(auth)/login.tsx`**: Se agregó el botón Google debajo del formulario con un separador visual "O continuá con".
 
 4. **`app/(auth)/register.tsx`**: Se agregó el botón Google debajo del formulario con separador "O registrate con".
+
