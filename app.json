@@ -18,7 +18,8 @@
       "bundleIdentifier": "com.tuempresa.gestorfinanciero"
     },
     "android": {
-      "package": "com.tuempresa.gestorfinanciero"
+      "package": "com.tuempresa.gestorfinanciero",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
