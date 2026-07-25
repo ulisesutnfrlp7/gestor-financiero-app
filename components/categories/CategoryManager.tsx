@@ -265,9 +265,10 @@ export const CategoryManager = () => {
       {/* Encabezado */}
         <View className="px-0 py-2 mb-3">
           <Text className="text-2xl font-bold text-gray-900">Categorías</Text>
+          <Text className="text-gray-500 text-sm mt-1">Personalizá tu experiencia.</Text>
         </View>
       {/* Crear nueva categoría */}
-      <View className="bg-white border border-gray-200 rounded-lg px-4 py-5 mb-6">
+      <View className="bg-white border border-gray-200 rounded-lg px-4 py-5 mb-6 mt-0">
         <Text className="text-sm font-medium text-gray-700 mb-3">
           Nueva Categoría
         </Text>

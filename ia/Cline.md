@@ -4055,3 +4055,469 @@ Toggleame a **Act Mode** y lo resuelvo.
 ✅ **`hasUnsavedChanges()` eliminado de `CategoryManager.tsx`.** 
 
 La función y su lógica ya no existen. El componente queda limpio.
+
+# CONVERSACIÓN 22/07/2026
+
+Planeemos esta nueva funcionalidad:
+
+| **Movimientos recurrentes** | Suscripciones, alquiler, etc. que se auto-crean cada mes |
+
+Implementar **movimientos recurrentes o programados** es una de las "killer features" (funciones estrella) de cualquier app financiera, porque le saca muchísimo trabajo manual al usuario (suscripciones, alquiler, colegio, sueldo).
+
+La mejor práctica no es elegir entre "todos los meses" o "un día exacto", sino **combinarlos**. El usuario debe crear una "Plantilla" de movimiento recurrente.
+
+En el formulario de "Nuevo Movimiento", agregaríamos un switch: **"🔄 Hacer recurrente"**. Si lo activa, le mostramos estas opciones:
+
+* **Frecuencia:** Diaria, Semanal, Quincenal, Mensual, Anual.
+* **Día de ejecución:** Obviamente, si se eligió frecuencia diaria, no aplica.
+* **Fecha de inicio:** A partir de cuándo arranca.
+* **Fecha de fin (Opcional):** "Hasta diciembre 2026" o "Para siempre".
+
+> **Ojo:** Hay que tener cuidado con los días 29, 30 y 31. Si alguien pone una cuota los días 31, en Febrero o Abril va a fallar. Una regla de negocio común es: *"Si el mes no tiene ese día, se ejecuta el último día hábil del mes"*.
+
+## Plan: Movimientos Recurrentes
+
+He analizado el codebase actual. Acá va el plan arquitectónico completo.
+
+---
+
+### 1. Nuevo tipo de dato: `RecurringTemplate`
+
+Se necesita una nueva interfaz en `types/index.ts`:
+
+```typescript
+export type RecurringFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly'
+
+export interface RecurringTemplate {
+  id: string
+  amount: number
+  description: string
+  category: string
+  type: TransactionType
+  userId: string
+
+  // Config de recurrencia
+  frequency: RecurringFrequency
+  executionDay: number | null       // null si es diario, 1-31 si es mensual/anual, 0-6 si es semanal
+  startDate: string                 // YYYY-MM-DD
+  endDate: string | null            // null = para siempre, opcional
+
+  // Estado
+  isActive: boolean                 // para pausar/reanudar
+  lastGeneratedDate: string | null  // YYYY-MM-DD — última vez que se generó el movimiento
+  nextExecutionDate: string         // próxima fecha calculada
+
+  // Metadatos
+  createdAt: string
+  updatedAt: string
+}
+```
+
+---
+
+### 2. Nueva colección en Firestore: `recurringTemplates`
+
+Cada template es un documento en esta colección. El execution engine consulta esta colección para saber qué generar.
+
+**Reglas de seguridad** (firestore.rules): similar a `transactions`: `match /recurringTemplates/{docId} { allow read, write: if request.auth.uid == resource.data.userId; }`
+
+---
+
+### 3. Ejecución automática (cron)
+
+Opción recomendada: **Firebase Cloud Functions + Pub/Shceduler (cron diario)**.
+
+- Una función `generateRecurringTransactions` se ejecuta todos los días a las 00:00 (o cada N horas).
+- Query: `recurringTemplates` donde `isActive == true` y `nextExecutionDate <= today` y `(endDate == null OR endDate >= today)`.
+- Para cada template que cumpla, crea un `Transaction` en la colección `transactions` y actualiza `lastGeneratedDate` y `nextExecutionDate` del template.
+
+**Si no tenés plan Blaze de Firebase**, como alternativa se puede hacer un **check al abrir la app** en el hook de inicialización (`_layout.tsx`), pero es menos confiable. La Cloud Function es lo profesional.
+
+---
+
+### 4. Estrategia de días 29/30/31 (edge case clave)
+
+Regla de negocio implementada en una función pura `calculateNextExecutionDate`:
+
+- Si `frequency = monthly` y `executionDay = 31`:
+  - En meses de 30 días → se ejecuta el **día 30**.
+  - En febrero (28 o 29) → se ejecuta el **último día del mes** (28 o 29).
+- Se usa `date-fns` (ya está en el proyecto) con `lastDayOfMonth`, `setDate`, `isValid`, etc.
+
+Esta función se usa tanto en el cron como al crear/editar un template (para previsualizar la próxima fecha).
+
+---
+
+### 5. Cambios en UI
+
+**5a. `TransactionForm.tsx`** — agregar un switch "🔄 Hacer recurrente" debajo del campo de categoría:
+
+- Si el switch está OFF → comportamiento actual (nada cambia).
+- Si el switch está ON → se muestran campos adicionales:
+  - **Frecuencia**: Picker con opciones Diaria / Semanal / Quincenal / Mensual / Anual.
+  - **Día de ejecución**: 
+    - Si es diario → oculto (no aplica).
+    - Si es semanal → picker de día de semana (lun-dom).
+    - Si es quincenal/mensual/anual → input numérico 1-31.
+  - **Fecha de inicio**: DatePicker (pre-cargada con la fecha del movimiento).
+  - **Fecha de fin (opcional)**: DatePicker. Si no se completa → null (para siempre).
+
+**5b. Nueva pantalla: `app/recurring/`** — lista de plantillas activas con opciones:
+  - Ver próximos movimientos generados.
+  - Pausar / Reanudar.
+  - Editar.
+  - Eliminar (borra el template, no las transacciones ya generadas).
+
+**5c. Dashboard** — podría mostrar en la sección de "Próximos vencimientos" o "Movimientos programados" los recurrentes próximos.
+
+---
+
+### 6. Nuevos archivos necesarios
+
+| Archivo | Propósito |
+|---|---|
+| `types/index.ts` | Agregar `RecurringTemplate`, `RecurringFrequency`, `RecurringFormData` |
+| `schemas/recurring.schema.ts` | Schema Zod para validación del formulario recurrente |
+| `services/recurring.service.ts` | CRUD de templates en Firestore + subscripción |
+| `utils/recurrence.ts` | Funciones puras: `calculateNextExecutionDate`, `getDayDescription`, etc. |
+| `components/transactions/RecurringConfig.tsx` | Subcomponente con los campos de recurrencia (toggle + fields) |
+| `app/recurring/index.tsx` | Lista de plantillas activas |
+| `app/recurring/[id].tsx` | Editar/ver detalle de plantilla |
+| `app/recurring/new.tsx` | (Opcional - se puede crear desde el formulario de movimiento) |
+| `cloud-functions/src/index.ts` | (Si usás Firebase Functions) |
+
+---
+
+### 7. Modificaciones a archivos existentes
+
+| Archivo | Cambio |
+|---|---|
+| `types/index.ts` | + `RecurringTemplate`, `RecurringFrequency`, `RecurringFormData` |
+| `store/useFinanceStore.ts` | + `recurringTemplates: RecurringTemplate[]` + setters |
+| `components/transactions/TransactionForm.tsx` | + Importar y renderizar `RecurringConfig` entre categoría y botones |
+| `app/transaction/new.tsx` | Si el form incluye datos recurrentes, llamar a `createRecurringTemplate` en vez de `createTransaction` |
+| `schemas/transaction.schema.ts` | Extender (o un schema separado) para incluir campos recurrentes |
+
+---
+
+### 8. Implementación paso a paso (orden sugerido)
+
+1. **Tipos y schemas** — `RecurringTemplate`, `RecurringFrequency`, schema Zod.
+2. **Utilidad de recurrencia** — `calculateNextExecutionDate` en `utils/recurrence.ts`.
+3. **Servicio** — `recurring.service.ts` con CRUD y subscripción.
+4. **Store** — Agregar `recurringTemplates` al Zustand store.
+5. **RecurringConfig component** — Subcomponente del formulario.
+6. **Modificar TransactionForm** — Integrar el toggle y los campos recurrentes.
+7. **Pantalla de listado** — `app/recurring/index.tsx`.
+8. **Pantalla de detalle/edición** — `app/recurring/[id].tsx`.
+9. **Cloud Function** — `generateRecurringTransactions` (si aplica).
+10. **Firestore rules** — Actualizar `firestore.rules`.
+
+---
+
+### Preguntas para definir antes de arrancar:
+
+1. **¿Querés usar Firebase Cloud Functions (plan Blaze) o preferís un check client-side al abrir la app?** La Cloud Function es más robusta pero requiere plan de pago.
+2. **¿Querés la pantalla de listado de recurrentes como una nueva pestaña en el bottom tabs o como una sección dentro de la pestaña actual de movimientos?**
+3. **¿Los movimientos generados automáticamente deberían mostrar algún tag/indicador visual en el listado de transacciones** (ej: un icono 🔄 al lado del nombre)?
+
+Con eso puedo ajustar el plan antes de pasar a implementación.
+
+## Plan Final — Movimientos Recurrentes
+
+---
+
+### 📦 1. Tipos nuevos (`types/index.ts`)
+
+```typescript
+export type RecurringFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly'
+
+export interface RecurringTemplate {
+  id: string
+  amount: number
+  description: string
+  category: string
+  type: TransactionType
+  userId: string
+  frequency: RecurringFrequency
+  executionDay: number | null       // null si daily, 1-31 si monthly/yearly, 0-6 si weekly
+  startDate: string                 // YYYY-MM-DD
+  endDate: string | null            // null = para siempre
+  isActive: boolean
+  lastGeneratedDate: string | null  // última vez que se generó
+  nextExecutionDate: string         // próxima fecha calculada
+  createdAt: string
+  updatedAt: string
+}
+
+export interface RecurringFormData {
+  amount: number
+  description: string
+  category: string
+  type: TransactionType
+  frequency: RecurringFrequency
+  executionDay: number | null
+  startDate: string
+  endDate: string | null
+}
+```
+
+Además, agregar un campo opcional `isRecurring?: boolean` a `Transaction` para identificar movimientos generados automáticamente.
+
+---
+
+### 🧮 2. Lógica de recurrencia (`utils/recurrence.ts`)
+
+Función pura `calculateNextExecutionDate(currentDate: string, template: RecurringTemplate): string`:
+
+- **Daily**: suma 1 día.
+- **Weekly**: suma 7 días.
+- **Biweekly**: suma 14 días.
+- **Monthly**: suma 1 mes, con ajuste de día 29/30/31:
+  - Si el mes destino no tiene ese día → último día del mes.
+- **Yearly**: suma 1 año, mismo ajuste.
+
+Usa `date-fns` (ya instalado): `addMonths`, `addYears`, `addDays`, `lastDayOfMonth`, `setDate`, `isValid`.
+
+---
+
+### 🔌 3. Servicio Firestore (`services/recurring.service.ts`)
+
+CRUD completo + subscripción en tiempo real, mismo patrón que `transactions.service.ts`:
+
+- `subscribeToRecurringTemplates(userId, onUpdate, onError)`
+- `fetchRecurringTemplates(userId)`
+- `createRecurringTemplate(userId, data)`
+- `updateRecurringTemplate(id, data)`
+- `deleteRecurringTemplate(id)`
+
+Colección en Firestore: `recurringTemplates`
+
+---
+
+### 🏪 4. Store Zustand (`store/useFinanceStore.ts`)
+
+Agregar:
+```typescript
+recurringTemplates: RecurringTemplate[]
+setRecurringTemplates: (templates: RecurringTemplate[]) => void
+```
+
+---
+
+### 🔄 5. Hook de recurrencias (`hooks/useRecurringTemplates.ts`)
+
+Mismo patrón que `useTransactions.ts` y `useCategories.ts`:
+- Subscripción en tiempo real a `recurringTemplates`.
+- Se monta en `_layout.tsx` junto a los otros hooks.
+
+---
+
+### ⏰ 6. Engine de ejecución client-side (`hooks/useRecurrenceEngine.ts`)
+
+**Este es el reemplazo de la Cloud Function.** Se ejecuta:
+
+- **Al abrir la app** (en `_layout.tsx`, después de que el usuario esté autenticado).
+- **Cada vez que cambian los templates** (cuando se recibe update del snapshot).
+
+Lógica:
+1. Obtener templates activos donde `nextExecutionDate <= today` y `(endDate == null OR endDate >= today)`.
+2. Para cada template que cumpla:
+   - Crear un `Transaction` en Firestore con `isRecurring: true`.
+   - Actualizar `lastGeneratedDate` y `nextExecutionDate` del template.
+3. Mostrar un Alert/Toast informando cuántos movimientos se generaron automáticamente.
+
+---
+
+### 🖥️ 7. UI: Formulario (`components/transactions/RecurringConfig.tsx`)
+
+Nuevo subcomponente que se renderiza dentro de `TransactionForm.tsx` cuando el switch "🔄 Hacer recurrente" está activo:
+
+- **Switch** toggle entre "Una vez" / "Recurrente".
+- **Frecuencia**: Picker con opciones: Diaria, Semanal, Quincenal, Mensual, Anual.
+- **Día de ejecución**:
+  - Diario → oculto.
+  - Semanal → picker de día (Lun-Dom, valores 0-6).
+  - Quincenal/Mensual/Anual → input numérico 1-31.
+- **Fecha de inicio**: DatePicker (pre-cargada con la fecha del movimiento).
+- **Fecha de fin (opcional)**: DatePicker. Si no se completa → null.
+
+**Modificaciones en `TransactionForm.tsx`:**
+- Importar y renderizar `RecurringConfig` entre categorías y botones.
+- El schema de validación se extiende condicionalmente (si recurrente, validar campos extra).
+
+**Modificaciones en `app/transaction/new.tsx`:**
+- Si el formulario incluye datos recurrentes, llamar a `createRecurringTemplate` en vez de (o además de) `createTransaction`.
+
+---
+
+### 🗂️ 8. UI: Nueva pestaña "Recurrentes" (`app/(tabs)/recurring.tsx`)
+
+Nueva pantalla en el bottom tabs con:
+
+- **Lista de plantillas activas** (FlatList, mismo patrón que `TransactionList`).
+- Cada item muestra: descripción, monto, frecuencia, próxima fecha, estado (activo/pausado).
+- **Acciones por item**: Pausar/Reanudar, Editar, Eliminar.
+- **Indicador visual**: icono 🔄 en los movimientos generados automáticamente en el historial.
+
+**Modificaciones en `app/(tabs)/_layout.tsx`:**
+- Agregar un nuevo `Tabs.Screen` con `name="recurring"`, icono `repeat-outline`, título "Recurrentes".
+
+---
+
+### 🏷️ 9. Indicador 🔄 en movimientos generados
+
+En `TransactionItem.tsx`:
+- Si `transaction.isRecurring === true`, mostrar un icono 🔄 pequeño junto a la descripción.
+
+---
+
+### 🔐 10. Firestore Rules
+
+Agregar en `firestore.rules`:
+```
+match /recurringTemplates/{docId} {
+  allow read, update, delete: if request.auth != null
+                               && request.auth.uid == resource.data.userId;
+  allow create: if request.auth != null
+                && request.auth.uid == request.resource.data.userId;
+}
+```
+
+---
+
+### 📋 Orden de implementación
+
+| Paso | Archivos | Descripción |
+|------|----------|-------------|
+| 1 | `types/index.ts` | Agregar tipos nuevos |
+| 2 | `utils/recurrence.ts` | Función `calculateNextExecutionDate` |
+| 3 | `services/recurring.service.ts` | CRUD Firestore |
+| 4 | `store/useFinanceStore.ts` | Agregar `recurringTemplates` al store |
+| 5 | `hooks/useRecurringTemplates.ts` | Hook de subscripción |
+| 6 | `hooks/useRecurrenceEngine.ts` | Engine de ejecución client-side |
+| 7 | `app/_layout.tsx` | Montar hooks + engine |
+| 8 | `firestore.rules` | Reglas de seguridad |
+| 9 | `components/transactions/RecurringConfig.tsx` | Subcomponente del formulario |
+| 10 | `schemas/transaction.schema.ts` | Schema extendido |
+| 11 | `components/transactions/TransactionForm.tsx` | Integrar RecurringConfig |
+| 12 | `app/transaction/new.tsx` | Llamar a createRecurringTemplate |
+| 13 | `app/(tabs)/recurring.tsx` | Pantalla de listado |
+| 14 | `app/(tabs)/_layout.tsx` | Agregar tab |
+| 15 | `components/transactions/TransactionItem.tsx` | Indicador 🔄 |
+
+---
+
+¿Estás de acuerdo con este plan? Si todo bien, pedime que pase a **ACT MODE** para empezar la implementación.
+
+# CONVERSACIÓN 25/07/2026
+
+la query de movimientos recurrentes requiere un índice, pero me aparece el error directamente en la aplicación, no como log de consola para copiar y pegar el link
+
+He encontrado el problema. Analicemos el flujo de errores:
+
+## Diagnóstico
+
+El error de Firestore por índice faltante aparece cuando se ejecutan las queries con `where('userId', '==', userId)` combinado con `orderBy('nextExecutionDate', 'asc')` en el archivo `services/recurring.service.ts` (líneas 64-68 y 78-82). El mensaje de error de Firestore **contiene un link** para crear el índice compuesto automáticamente.
+
+Actualmente, el error se maneja en `hooks/useRecurringTemplates.ts` línea 22:
+
+```ts
+(error) => setError(error.message)
+```
+
+Esto solo envía el mensaje al store, que se muestra en la UI del Dashboard (en el banner de error). **El problema**: el mensaje nunca se envía a la consola, por lo que no podés copiar el link para crear el índice desde la UI de la app móvil.
+
+No hay un `console.error` en ninguna parte, así que el link queda atrapado en la interfaz visual sin posibilidad de copiarlo.
+
+## Plan de solución
+
+El cambio es mínimo y consiste en agregar `console.error` en el callback de error de `subscribeToRecurringTemplates` en `useRecurringTemplates.ts`, para que el mensaje (incluyendo el link) aparezca también en la consola/debugger y puedas copiarlo:
+
+1. Editar `hooks/useRecurringTemplates.ts`:
+   - Cambiar el callback `onError` de `(error) => setError(error.message)` a:
+     ```ts
+     (error) => {
+       console.error('Error al cargar plantillas recurrentes:', error.message)
+       setError(error.message)
+     }
+     ```
+
+Esto es suficiente para que el mensaje con el link aparezca tanto en la consola (copiable) como en la UI.
+
+## Pasos adicionales (opcional)
+
+Una vez creado el índice, si quieres que el error desaparezca automáticamente cuando el índice esté disponible, podríamos agregar un mecanismo para limpiar el error tras unos segundos, pero eso sería un cambio adicional fuera del scope de este reporte.
+
+¿Te parece bien esta solución? Si estás de acuerdo, pedime que cambie a **Act Mode** para implementarlo.
+
+Se agregó `console.error` en el callback de error de `subscribeToRecurringTemplates` en `hooks/useRecurringTemplates.ts`. Ahora, cuando Firestore devuelva el error por falta de índice, el mensaje (que incluye el link para crear el índice) aparecerá tanto en la consola/debugger (donde podés copiarlo) como en el banner de error de la UI.
+
+Para ver el link, abrí la consola de depuración de la app (por ejemplo, con `npx expo start` y luego presionando `j` para abrir el debugger, o revisando la terminal donde corre Metro).
+
+perfecto. Ahora, básicamente, lo que necesito es poder testear realmente que las plantillas diarias, mensuales, anuales etc. Realmente funcionan. No sé si se podría hacer algo con movimientos recurrentes por segundo para checkear creaciones y demás.
+
+Entiendo. Querés verificar que el motor de recurrencia realmente genere transacciones correctamente para cada tipo de frecuencia (diaria, semanal, quincenal, mensual, anual). Hay dos capas para testear:
+
+## Capa 1: Tests unitarios (cálculo de fechas)
+
+La función `calculateNextExecutionDate` en `utils/recurrence.ts` es **pura** (solo recibe inputs y devuelve un output). Es ideal para unit tests con Jest. Podemos verificar casos como:
+
+- **Diario**: `2026-07-25` → `2026-07-26`
+- **Semanal**: `2026-07-25` → `2026-08-01`
+- **Quincenal**: `2026-07-25` → `2026-08-08`
+- **Mensual con día 31**: `2026-01-31` → `2026-02-28` (último día de febrero)
+- **Mensual con día 15**: `2026-01-15` → `2026-02-15`
+- **Anual con día 29 feb**: `2024-02-29` → `2025-02-28` (año no bisiesto)
+- **Anual**: `2026-07-25` → `2027-07-25`
+
+## Capa 2: Test de integración (generación real)
+
+Para probar que el flujo completo funciona (que se crean transacciones en Firestore), la opción más práctica es agregar una **pantalla de debug** o un **botón "Generar test"** en la pantalla de recurrentes que:
+
+1. Cree plantillas de prueba con fechas pasadas (para que estén vencidas inmediatamente)
+2. Al entrar a la app, el motor `useRecurrenceEngine` las detecte y ejecute
+3. Se pueda ver el resultado (transacciones generadas) en el historial
+
+## Propuesta concreta
+
+Te propongo:
+
+1. **Configurar Jest** en el proyecto (instalar `jest`, `ts-jest`, `@types/jest`)
+2. **Escribir tests unitarios** para `calculateNextExecutionDate` cubriendo todos los casos borde
+3. **Agregar una pantalla de debug** (ruta `/debug/recurrence`) con:
+   - Botones para crear plantillas de prueba de cada tipo con fecha de inicio = ayer
+   - Un listado de las plantillas actuales
+   - Un botón para forzar la ejecución del motor
+   - Visualización de las transacciones generadas
+
+Esto te permite:
+- Verificar la lógica de fechas al instante con los tests
+- Probar el flujo real contra Firestore con la pantalla de debug
+- Detectar errores de índice o permisos
+
+¿Te parece bien este enfoque? Si querés algo más liviano, podemos solo hacer los unit tests + un botón simple en la pantalla de recurrentes para crear datos de prueba. Decime qué prefieras y te paso a Act Mode para implementarlo.
+
+me encantó la implementación de movimientos recurrentes. Lo que necesito ahora es que, a modo de aviso (alert), se le diga al usuario algo como "No podés hacer que un movimiento recurrente vuelva a ser de una vez. crea el movimiento de manera natural a través del formulario de creación" cuando el usuario le de a "Guardar Plantilla"
+
+Ya tengo claro el flujo. El botón "Guardar Plantilla" aparece en `TransactionForm.tsx` cuando se está editando una plantilla recurrente existente (en la pantalla `app/recurring/[id].tsx`).
+
+## Plan
+
+Agregar un `Alert` informativo en `TransactionForm.tsx` en la función `onFormSubmit`, antes de que se ejecute el guardado, cuando `recurringTemplate` esté definido (es decir, cuando se está editando una plantilla recurrente existente y el botón dice "Guardar Plantilla").
+
+**Cambio en `components/transactions/TransactionForm.tsx`**:
+
+Dentro de `onFormSubmit`, al inicio, si `recurringTemplate` existe:
+```tsx
+if (recurringTemplate) {
+  Alert.alert(
+    'Movimiento Recurrente',
+    'No podés hacer que un movimiento recurrente vuelva a ser de una vez. Crea el movimiento de manera natural a través del formulario de creación.'
+  )
+}
+```
+
+El resto del flujo continúa normal después del Alert. Esto muestra el aviso informativo sin bloquear el guardado, educando al usuario de que si quiere un movimiento de una sola vez, debe crearlo desde el formulario de nuevo movimiento (`/transaction/new`).
+
+¿Te parece bien? Si aprobás, pasame a Act Mode para implementarlo.

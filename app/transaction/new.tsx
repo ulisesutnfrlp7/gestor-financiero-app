@@ -12,19 +12,29 @@ import { router } from 'expo-router'
 import { TransactionForm } from '@/components/transactions/TransactionForm'
 import { useFinanceStore } from '@/store/useFinanceStore'
 import { createTransaction } from '@/services/transactions.service'
-import type { TransactionFormData } from '@/types'
+import { createRecurringTemplate } from '@/services/recurring.service'
+import type { RecurringFormData, TransactionFormData } from '@/types'
 import { isOnline } from '@/utils/network'
 
 export default function NewTransactionScreen() {
   const userId = useFinanceStore((state) => state.userId)
   const error  = useFinanceStore((state) => state.error)
 
-  const handleSubmit = async (data: TransactionFormData) => {
+  const handleSubmit = async (
+    data: TransactionFormData & { recurring?: RecurringFormData }
+  ) => {
     if (!userId) return
 
     const online = await isOnline()
     if (!online) {
       Alert.alert('Sin conexión', 'Sin conexión a Internet. Verificá tu conexión.')
+      return
+    }
+
+    if (data.recurring) {
+      await createRecurringTemplate(userId, data.recurring)
+      Alert.alert('Éxito', 'Plantilla recurrente creada exitosamente.')
+      router.back()
       return
     }
 

@@ -50,5 +50,5 @@ export const formatShortDate = (dateString: string): string => {
  * por defecto en el campo de fecha del formulario.
  */
 export const getCurrentDateISO = (): string => {
-  return new Date().toISOString().split('T')[0]
+  return format(new Date(), 'yyyy-MM-dd')
 }

@@ -44,6 +44,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="recurring"
+        options={{
+          title: 'Recurrentes',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="repeat-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="categories"
         options={{
           title: 'Categorías',

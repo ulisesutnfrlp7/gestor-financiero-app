@@ -62,6 +62,7 @@ export const subscribeToTransactions = (
           updatedAt: data['updatedAt'] instanceof Timestamp
             ? data['updatedAt'].toDate().toISOString()
             : (data['updatedAt'] as string),
+          isRecurring: data['isRecurring'] === true,
         }
       })
       onUpdate(transactions)
@@ -101,6 +102,7 @@ export const fetchTransactions = async (
       updatedAt: data['updatedAt'] instanceof Timestamp
         ? data['updatedAt'].toDate().toISOString()
         : (data['updatedAt'] as string),
+      isRecurring: data['isRecurring'] === true,
     }
   })
 }

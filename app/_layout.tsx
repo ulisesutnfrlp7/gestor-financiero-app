@@ -19,6 +19,8 @@ import { auth } from '@/lib/firebase'
 import { useFinanceStore } from '@/store/useFinanceStore'
 import { useTransactions } from '@/hooks/useTransactions'
 import { useCategories } from '@/hooks/useCategories'
+import { useRecurringTemplates } from '@/hooks/useRecurringTemplates'
+import { useRecurrenceEngine } from '@/hooks/useRecurrenceEngine'
 import { seedDefaultCategories } from '@/services/categories.service'
 import '../global.css'
 
@@ -33,6 +35,8 @@ export default function RootLayout() {
   // Suscripciones Firestore: activas una vez que userId esté seteado
   useTransactions()
   useCategories()
+  useRecurringTemplates()
+  useRecurrenceEngine()
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -74,6 +78,16 @@ export default function RootLayout() {
           name="transaction/[id]"
           options={{
             title: 'Editar Movimiento',
+            presentation: 'modal',
+            headerStyle: { backgroundColor: '#4F46E5' },
+            headerTintColor: '#FFFFFF',
+            headerTitleStyle: { fontWeight: '600' },
+          }}
+        />
+        <Stack.Screen
+          name="recurring/[id]"
+          options={{
+            title: 'Editar Recurrente',
             presentation: 'modal',
             headerStyle: { backgroundColor: '#4F46E5' },
             headerTintColor: '#FFFFFF',

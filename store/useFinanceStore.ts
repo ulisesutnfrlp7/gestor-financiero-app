@@ -10,11 +10,12 @@
 // Patrón recomendado para Zustand: un hook por store, selectores externos.
 
 import { create } from 'zustand'
-import type { Transaction, CustomCategory } from '@/types'
+import type { Transaction, CustomCategory, RecurringTemplate } from '@/types'
 
 interface FinanceState {
   transactions: Transaction[]
   categories: CustomCategory[]
+  recurringTemplates: RecurringTemplate[]
   isLoading: boolean
   error: string | null
   userId: string | null
@@ -22,6 +23,7 @@ interface FinanceState {
   // Acciones — nombre explícito de lo que hacen
   setTransactions: (transactions: Transaction[]) => void
   setCategories: (categories: CustomCategory[]) => void
+  setRecurringTemplates: (templates: RecurringTemplate[]) => void
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
   setUserId: (userId: string | null) => void
@@ -31,6 +33,7 @@ export const useFinanceStore = create<FinanceState>()((set) => ({
   // Estado inicial
   transactions: [],
   categories: [],
+  recurringTemplates: [],
   isLoading: false,
   error: null,
   userId: null,
@@ -38,6 +41,7 @@ export const useFinanceStore = create<FinanceState>()((set) => ({
   // Setters inmutables
   setTransactions: (transactions) => set({ transactions }),
   setCategories:   (categories)   => set({ categories }),
+  setRecurringTemplates: (recurringTemplates) => set({ recurringTemplates }),
   setLoading:      (isLoading)    => set({ isLoading }),
   setError:        (error)        => set({ error }),
   setUserId:       (userId)       => set({ userId }),

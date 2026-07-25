@@ -27,23 +27,35 @@ import {
   transactionSchema,
   type TransactionFormValues,
 } from '@/schemas/transaction.schema'
-import type { Transaction, TransactionFormData, TransactionType } from '@/types'
+import type {
+  RecurringFormData,
+  RecurringTemplate,
+  Transaction,
+  TransactionFormData,
+  TransactionType,
+} from '@/types'
 import { useFinanceStore, selectAllCategories } from '@/store/useFinanceStore'
 import { Button } from '@/components/ui/Button'
 import { getCurrentDateISO, formatShortDate } from '@/utils/formatters'
+import { RecurringConfig } from './RecurringConfig'
 
 interface TransactionFormProps {
   initialData?: Transaction
-  onSubmit: (data: TransactionFormData) => Promise<void>
+  recurringTemplate?: RecurringTemplate
+  onSubmit: (data: TransactionFormData & { recurring?: RecurringFormData }) => Promise<void>
   onCancel?: () => void
 }
 
 export const TransactionForm: React.FC<TransactionFormProps> = ({
   initialData,
+  recurringTemplate,
   onSubmit,
   onCancel,
 }) => {
   const [showDatePicker, setShowDatePicker] = useState(false)
+  const defaultDate = initialData?.date
+    ? initialData.date.split('T')[0]
+    : recurringTemplate?.startDate ?? getCurrentDateISO()
 
   const {
     control,
@@ -54,13 +66,18 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   } = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
     defaultValues: {
-      amount:      initialData?.amount ? String(initialData.amount) : '',
-      description: initialData?.description ?? '',
-      category:    initialData?.category ?? '',
-      date:        initialData?.date
-        ? initialData.date.split('T')[0]
-        : getCurrentDateISO(),
-      type:        initialData?.type ?? 'expense',
+      amount:       initialData?.amount
+        ? String(initialData.amount)
+        : recurringTemplate?.amount ? String(recurringTemplate.amount) : '',
+      description:  initialData?.description ?? recurringTemplate?.description ?? '',
+      category:     initialData?.category ?? recurringTemplate?.category ?? '',
+      date:         defaultDate,
+      type:         initialData?.type ?? recurringTemplate?.type ?? 'expense',
+      isRecurring:  Boolean(recurringTemplate),
+      frequency:    recurringTemplate?.frequency ?? 'monthly',
+      executionDay: recurringTemplate?.executionDay ?? null,
+      startDate:    recurringTemplate?.startDate ?? defaultDate,
+      endDate:      recurringTemplate?.endDate ?? null,
     },
   })
 
@@ -77,13 +94,29 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   }
 
   const onFormSubmit = async (data: TransactionFormValues) => {
-    await onSubmit({
+    const transactionData: TransactionFormData = {
       amount:      parseFloat(data.amount),
       description: data.description,
       category:    data.category,
       date:        data.date,
       type:        data.type,
-    })
+    }
+
+    await onSubmit(data.isRecurring
+      ? {
+          ...transactionData,
+          recurring: {
+            amount: transactionData.amount,
+            description: transactionData.description,
+            category: transactionData.category,
+            type: transactionData.type,
+            frequency: data.frequency,
+            executionDay: data.executionDay,
+            startDate: data.startDate,
+            endDate: data.endDate,
+          },
+        }
+      : transactionData)
   }
 
   const hasChanges = () => {
@@ -291,10 +324,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           )}
         </View>
 
+        {!initialData && (
+          <RecurringConfig watch={watch} setValue={setValue} errors={errors} />
+        )}
+
         {/* ── Botones ── */}
         <View className="gap-3 mt-2">
           <Button
-            title={initialData ? 'Guardar Cambios' : 'Registrar Movimiento'}
+            title={initialData
+              ? 'Guardar Cambios'
+              : recurringTemplate ? 'Guardar Plantilla' : 'Registrar Movimiento'}
             onPress={handleSubmit(onFormSubmit)}
             loading={isSubmitting}
           />

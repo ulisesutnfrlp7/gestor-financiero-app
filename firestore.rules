@@ -10,6 +10,14 @@ service cloud.firestore {
                     && request.auth.uid == request.resource.data.userId;
     }
 
+    // Plantillas recurrentes: cada usuario solo ve y administra las suyas
+    match /recurringTemplates/{docId} {
+      allow read, update, delete: if request.auth != null
+                                   && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.userId;
+    }
+
     // Perfiles de usuario: cada usuario solo puede leer/editar su propio perfil
     match /users/{userId} {
       allow read, update, delete: if request.auth != null

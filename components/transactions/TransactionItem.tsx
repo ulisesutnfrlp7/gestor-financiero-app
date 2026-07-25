@@ -46,12 +46,17 @@ const TransactionItemComponent: React.FC<TransactionItemProps> = ({
 
       {/* Descripción y categoría */}
       <View className="flex-1 mr-3 min-w-0">
-        <Text
-          className="text-gray-900 font-medium text-sm"
-          numberOfLines={1}
-        >
-          {transaction.description}
-        </Text>
+        <View className="flex-row items-center gap-1">
+          <Text
+            className="flex-1 text-gray-900 font-medium text-sm"
+            numberOfLines={1}
+          >
+            {transaction.description}
+          </Text>
+          {transaction.isRecurring && (
+            <Ionicons name="repeat" size={14} color="#4F46E5" />
+          )}
+        </View>
         <Text className="text-gray-400 text-xs mt-0.5" numberOfLines={1}>
           {category?.label ?? transaction.category}
           {' · '}
