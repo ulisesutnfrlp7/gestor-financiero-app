@@ -94,6 +94,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   }
 
   const onFormSubmit = async (data: TransactionFormValues) => {
+    if (recurringTemplate && !data.isRecurring) {
+      Alert.alert(
+        'Movimiento Recurrente',
+        'No podés hacer que un movimiento recurrente vuelva a ser de una vez. Creá el movimiento de manera natural a través del formulario de creación.'
+      )
+    }
+
     const transactionData: TransactionFormData = {
       amount:      parseFloat(data.amount),
       description: data.description,
