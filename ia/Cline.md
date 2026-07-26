@@ -4805,3 +4805,7 @@ const userInfo = await GoogleSignin.signIn()
 ¿Querés que lo implemente? Pasame a Act Mode y lo hago.
 
 Se agregó `await GoogleSignin.signOut()` justo antes de `GoogleSignin.signIn()` en `components/auth/GoogleSignInButton.tsx`. Esto fuerza a Google a mostrar el selector de cuentas cada vez que se toca el botón "Continuar con Google", en lugar de usar automáticamente la última cuenta utilizada.
+
+* Cuando uso un mail real para crear la cuenta sin google (registrar)
+
+* Cuando registro algo ya registrado con google que no se duplique la cuenta, que entre directamente.

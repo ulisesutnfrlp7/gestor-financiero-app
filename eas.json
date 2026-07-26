@@ -14,21 +14,11 @@
         "buildType": "apk"
       },
       "env": {
-        "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
-        "GOOGLE_SERVICES_JSON": "GOOGLE_SERVICES_JSON"
-      },
-      "fileSecrets": {
-        "GOOGLE_SERVICES_JSON": "google-services.json"
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       }
     },
     "production": {
-      "autoIncrement": true,
-      "env": {
-        "GOOGLE_SERVICES_JSON": "GOOGLE_SERVICES_JSON"
-      },
-      "fileSecrets": {
-        "GOOGLE_SERVICES_JSON": "google-services.json"
-      }
+      "autoIncrement": true
     }
   },
   "submit": {
