@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { signInWithCredential, GoogleAuthProvider } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { createUserProfile } from '@/services/users.service'
+import { isOnline } from '@/utils/network'
 
 interface GoogleSignInButtonProps {
   /** 'login' solo autentica; 'register' además crea el perfil en Firestore */
@@ -19,6 +20,11 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({ mode }) 
   const [isLoading, setIsLoading] = useState(false)
 
   const handleGoogleSignIn = async () => {
+    const online = await isOnline()
+    if (!online) {
+      Alert.alert('Sin conexión', 'Necesitás estar conectado a internet para iniciar sesión con Google.')
+      return
+    }
     setIsLoading(true)
     try {
       // Import dinámico — solo se evalúa al tocar el botón

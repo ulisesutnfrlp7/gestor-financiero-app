@@ -5,8 +5,18 @@
 // pero no crea documentos en Firestore automáticamente.
 // Esta capa se encarga de persistir datos del perfil del usuario.
 
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import {
+  doc,
+  setDoc,
+  serverTimestamp,
+  collection,
+  query,
+  where,
+  getDocs,
+  writeBatch,
+} from 'firebase/firestore'
+import { deleteUser, signOut } from 'firebase/auth'
+import { db, auth } from '@/lib/firebase'
 
 const COLLECTION = 'users'
 
@@ -27,4 +37,57 @@ export const createUserProfile = async (
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
+}
+
+/**
+ * Elimina todos los datos del usuario en cascada:
+ * 1. Transacciones
+ * 2. Plantillas recurrentes
+ * 3. Categorías personalizadas
+ * 4. Perfil de usuario
+ * 5. Cuenta de Firebase Auth
+ * 6. Cerrar sesión
+ *
+ * Usa batches de Firestore para operaciones atómicas.
+ */
+export const deleteUserAccount = async (userId: string): Promise<void> => {
+  // 1-4. Eliminar datos de Firestore en batch (con sesión activa)
+  const batch = writeBatch(db)
+
+  // 1. Eliminar transacciones
+  const transactionsQuery = query(
+    collection(db, 'transactions'),
+    where('userId', '==', userId)
+  )
+  const transactionsSnapshot = await getDocs(transactionsQuery)
+  transactionsSnapshot.docs.forEach((docSnap) => batch.delete(docSnap.ref))
+
+  // 2. Eliminar plantillas recurrentes
+  const recurringQuery = query(
+    collection(db, 'recurringTemplates'),
+    where('userId', '==', userId)
+  )
+  const recurringSnapshot = await getDocs(recurringQuery)
+  recurringSnapshot.docs.forEach((docSnap) => batch.delete(docSnap.ref))
+
+  // 3. Eliminar categorías personalizadas
+  const categoriesSnapshot = await getDocs(
+    collection(db, 'users', userId, 'categories')
+  )
+  categoriesSnapshot.docs.forEach((docSnap) => batch.delete(docSnap.ref))
+
+  // 4. Eliminar perfil de usuario
+  batch.delete(doc(db, COLLECTION, userId))
+
+  // Ejecutar batch
+  await batch.commit()
+
+  // 5. Eliminar cuenta de Firebase Auth (requiere sesión reciente)
+  const currentUser = auth.currentUser
+  if (currentUser) {
+    await deleteUser(currentUser)
+  }
+
+  // 6. Cerrar sesión
+  await signOut(auth)
 }

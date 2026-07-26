@@ -45,7 +45,7 @@ export default function RegisterScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View className="items-center mb-8">
-        <Text className="text-3xl font-bold text-gray-900">Crear cuenta</Text>
+        <Text className="text-3xl font-bold text-gray-900">Crear Cuenta</Text>
         <Text className="text-gray-500 mt-2 text-base">Completá tus datos para registrarte</Text>
       </View>
 
