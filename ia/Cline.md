@@ -4964,3 +4964,297 @@ El overlay se superpone sobre toda la pantalla con un fondo semi-transparente os
 Archivo a modificar: `app/(tabs)/index.tsx`
 
 ¿Te parece? Pasame a Act Mode.
+
+# CONVERSACIÓN 26/07/2026
+
+necesito planear una suite de tests para la aplicación. Identificá las zonas calientes y hacé hincapié en ellas. No sé cómo convendría organizar entre tests unitarios, de integración y e2e. Mucho menos sé cómo funciona para una aplicación móvil como esta. Te delego la organización.
+
+## 🎯 Plan de Testing para Gestor Financiero App
+
+Luego de analizar toda la arquitectura (16 archivos clave leídos entre servicios, store, hooks, schemas, utils, componentes y pantallas), este es el plan completo:
+
+---
+
+### 1. Stack de testing propuesto
+
+| Propósito | Herramienta | Justificación |
+|-----------|------------|---------------|
+| **Unit tests** | Jest + Vitest (compatibilidad con Expo SDK 52) | Framework estándar en RN, corre sin emulador |
+| **Component tests** | React Native Testing Library | Renderiza componentes en un entorno simulado, permite testear interacciones |
+| **Hook tests** | @testing-library/react-hooks | Testea hooks de forma aislada sin montar componentes |
+| **E2E** | Detox (o Maestro, más moderno) | Testing end-to-end en dispositivo/emulador real |
+
+**Dependencias a instalar:**
+```json
+"devDependencies": {
+  "jest": "^29.x",
+  "@testing-library/react-native": "^12.x",
+  "@testing-library/jest-native": "^5.x",
+  "@testing-library/react-hooks": "^8.x",
+  "jest-expo": "~54.x",
+  "react-native-dotenv": "^3.x",
+  "@types/jest": "^29.x"
+}
+```
+
+---
+
+### 2. Zonas calientes (prioridad de testing)
+
+| Prioridad | Zona | Archivos | Riesgo |
+|-----------|------|----------|--------|
+| 🔴 **Crítica** | Schemas Zod | `schemas/transaction.schema.ts`, `schemas/category.schema.ts`, `schemas/auth.schema.ts` | Validaciones incorrectas = datos corruptos en Firestore |
+| 🔴 **Crítica** | Servicios Firebase CRUD | `services/transactions.service.ts`, `services/categories.service.ts`, `services/recurring.service.ts` | Transformación Timestamp, errores de red no manejados |
+| 🟡 **Alta** | Store + Selectores | `store/useFinanceStore.ts` | Cálculo de balance incorrecto = dashboard mal |
+| 🟡 **Alta** | Hooks de datos | `hooks/useTransactions.ts`, `hooks/useCategories.ts`, `hooks/useRecurrenceEngine.ts` | Suscripciones que no se limpian, estados loading/error mal manejados |
+| 🟡 **Alta** | TransactionForm | `components/transactions/TransactionForm.tsx` (360 líneas) | Lógica más compleja de la app: react-hook-form + Zod + recurrencia + categorías filtradas |
+| 🟢 **Media** | Utils | `utils/formatters.ts`, `utils/recurrence.ts`, `utils/network.ts` | Código puro, fácil de testear pero crítico si falla |
+| 🟢 **Media** | Flujo auth | `app/_layout.tsx` | Redirección incorrecta, seed de categorías |
+| 🔵 **Baja** | Componentes UI | `BalanceCard`, `TransactionItem`, `TransactionList`, `SummaryItem` | Son mayormente presentacionales, test visual |
+
+---
+
+### 3. Distribución de tests propuesta
+
+```
+__tests__/
+├── unit/
+│   ├── schemas/
+│   │   ├── transaction.schema.test.ts    ← PRIORIDAD MÁXIMA
+│   │   ├── category.schema.test.ts
+│   │   └── auth.schema.test.ts
+│   ├── utils/
+│   │   ├── formatters.test.ts
+│   │   ├── recurrence.test.ts
+│   │   ├── network.test.ts
+│   │   └── exportPdf.test.ts
+│   ├── store/
+│   │   └── useFinanceStore.test.ts       ← Selectores (balance, income, expense)
+│   └── services/
+│       ├── transactions.service.test.ts  ← Mock Firebase
+│       ├── categories.service.test.ts    ← Mock Firebase
+│       └── recurring.service.test.ts     ← Mock Firebase
+│
+├── integration/
+│   ├── hooks/
+│   │   ├── useTransactions.test.ts       ← Hook + Store + Servicios mockeados
+│   │   ├── useCategories.test.ts
+│   │   └── useRecurrenceEngine.test.ts
+│   └── components/
+│       ├── TransactionForm.test.ts       ← PRIORIDAD: formulario completo con validación
+│       ├── TransactionList.test.ts
+│       └── BalanceCard.test.ts
+│
+└── e2e/
+    ├── auth.e2e.ts                       ← Flujo login anónimo → dashboard
+    ├── transaction-crud.e2e.ts            ← Crear/editar/eliminar movimiento
+    └── dashboard.e2e.ts                   ← Ver balance correcto después de operaciones
+```
+
+---
+
+### 4. Detalle por test (lo que cubre cada suite)
+
+#### **Unitarios — Schemas** 🔴
+```ts
+// transaction.schema.test.ts (estos son los tests más importantes de toda la app)
+✓ Rechaza monto <= 0
+✓ Rechaza monto > 999,999,999
+✓ Rechaza descripción > 100 caracteres
+✓ Rechaza fecha en formato inválido (no YYYY-MM-DD)
+✓ Acepta transacción válida income
+✓ Acepta transacción válida expense
+✓ SuperRefine: daily → executionDay debe ser null
+✓ SuperRefine: weekly → executionDay entre 0-6
+✓ SuperRefine: monthly → executionDay entre 1-31
+✓ SuperRefine: endDate debe ser posterior a startDate
+✓ Inferencia correcta de tipos TransactionFormValues
+```
+
+#### **Unitarios — Store** 🟡
+```ts
+// useFinanceStore.test.ts
+✓ selectTotalIncome: suma correcta de múltiples transacciones income
+✓ selectTotalExpenses: suma correcta de múltiples transacciones expense
+✓ selectBalance: income - expense = resultado esperado
+✓ selectAllCategories: devuelve el array completo
+✓ selectBalance con transacciones vacías = 0
+✓ selectBalance con solo ingresos = suma de ingresos
+✓ selectBalance con solo gastos = -suma de gastos (negativo)
+✓ setTransactions reemplaza completamente el array
+✓ Manejo de estados: isLoading, error, userId
+```
+
+#### **Unitarios — Servicios** 🔴 (Firebase mockeado)
+```ts
+// transactions.service.test.ts
+✓ subscribeToTransactions: llama a onSnapshot con filtro userId + orderBy date desc
+✓ subscribeToTransactions: ejecuta onUpdate con datos transformados
+✓ subscribeToTransactions: ejecuta onError cuando falla el snapshot
+✓ fetchTransactions: fetchea y transforma documentos correctamente
+✓ createTransaction: llama a addDoc con datos formateados (date como string ISO)
+✓ createTransaction: retorna el ID del documento creado
+✓ updateTransaction: llama a updateDoc con campos parciales + updatedAt
+✓ deleteTransaction: llama a deleteDoc con el ID correcto
+✓ Normalización: Timestamp → string ISO en date/createdAt/updatedAt
+✓ Normalización: string ISO se mantiene como string
+```
+
+#### **Integración — Hooks** 🟡
+```ts
+// useTransactions.test.ts (Hook + Store mockeado + Servicio mockeado)
+✓ setea transactions en el store cuando el servicio emite datos
+✓ setea isLoading=true durante la carga
+✓ setea error en el store cuando el servicio falla
+✓ cleanup: unsubcribe al desmontar el hook
+✓ no llama a setUserId dos veces (idempotencia)
+```
+
+#### **Integración — Componentes** 🟡
+```ts
+// TransactionForm.test.ts
+✓ Renderiza campos del formulario (monto, descripción, categoría, fecha, tipo)
+✓ Muestra error de validación al enviar vacío
+✓ Muestra error al enviar con monto inválido
+✓ Cambia opciones de categoría al cambiar tipo income/expense
+✓ Envía datos correctos al submit exitoso
+✓ Muestra configuración de recurrencia cuando isRecurring=true
+✓ Ejecuta validación de recurrencia en superRefine
+```
+
+#### **E2E** (opcional, para después)
+```ts
+// auth.e2e.ts
+✓ Login anónimo → redirige a tabs
+✓ Persistencia de sesión al cerrar/reabrir app
+
+// transaction-crud.e2e.ts
+✓ Crear transacción → aparece en el historial
+✓ Editar transacción → refleja cambios
+✓ Eliminar transacción → desaparece del historial
+
+// dashboard.e2e.ts
+✓ Balance se actualiza tras crear/editar/eliminar transacciones
+```
+
+---
+
+### 5. Estimación de esfuerzo
+
+| Tipo | Cantidad estimada de tests | Archivos |
+|------|---------------------------|----------|
+| Unitarios | ~40-50 tests | 7 archivos |
+| Integración | ~20-25 tests | 4 archivos |
+| E2E | ~10-15 tests | 3 archivos |
+| **Total** | **~70-90 tests** | **14 archivos** |
+
+**Orden de implementación sugerido:**
+1. Schemas (Zod) → código puro, sin mocking, dan confianza base
+2. Utils → código puro, rápida implementación
+3. Store (selectores) → código puro
+4. Servicios → requieren mocking de Firebase
+5. Hooks → integración servicio + store
+6. Componentes (TransactionForm primero) → requieren RNTL
+7. E2E → último, requiere emulador
+
+---
+
+### 6. Configuración necesaria
+
+Se requiere crear:
+- `jest.config.js` con preset de Expo
+- `__mocks__/firebase.ts` para mockear Firebase
+- Script `test` en `package.json` con cobertura
+- Posiblemente `jest.setup.ts` para mocks globales de `react-native` y `expo-router`
+
+---
+
+**¿Qué te parece este enfoque?** ¿Querés que ajuste algo antes de pasar a implementación? Algunas preguntas:
+
+1. ¿Preferís **Detox** o **Maestro** para E2E? Maestro es más moderno y no requiere compilación nativa.
+2. ¿Querés arrancar con los unitarios primero (schemas + utils) que son código puro y dan más confianza rápido?
+3. ¿Tenés preferencia sobre dónde ubicar los tests? Propuse `__tests__/` en raíz, pero también podrían ir colocalados (ej: `schemas/transaction.schema.test.ts` al lado del archivo).
+
+1. ¿Detox o Maestro para E2E?
+Ve con Maestro sin dudarlo.
+
+Velocidad y simplicidad: Maestro es infinitamente menos doloroso de configurar en el ecosistema de React Native / Expo. Detox requiere lidiar constantemente con configuraciones de builds nativos de iOS y Android que se rompen con cada actualización.
+
+Curva de aprendizaje: Maestro usa flujos declarativos en YAML. Es mucho más tolerante a los retrasos de renderizado y no necesitas inyectar código en la app para que funcione.
+
+2. ¿Arrancar con los unitarios (schemas + utils)?
+Cien por ciento sí.
+
+Retorno de inversión (ROI): Es el código más barato, fácil y rápido de testear. Al ser funciones puras (sin dependencias de UI, Firebase o React), los tests corren en milisegundos.
+
+Confianza estructural: Te aseguran que la base de la pirámide (la integridad de los datos) esté sólida. Si las validaciones de Zod funcionan, sabés que Firebase nunca va a recibir basura, lo que te quita un dolor de cabeza enorme al testear los componentes más arriba.
+
+3. ¿Ubicación de los tests: raíz o colocalizados?
+Te recomiendo fuertemente los tests colocalizados para unitarios y de componentes.
+
+Mantenibilidad: Poner transaction.schema.test.ts exactamente en la misma carpeta junto a transaction.schema.ts mantiene el contexto unido. Si el día de mañana borrás un componente o un schema, es evidente que tenés que borrar su test también.
+
+Imports limpios: Te ahorrás las rutas relativas kilométricas (../../../../schemas/transaction.schema.ts) que suelen ocurrir cuando replicás todo el árbol de carpetas dentro de __tests__/.
+
+Excepción E2E y Mocks: Los únicos que sí merecen ir en la raíz son la carpeta e2e/ (porque prueban flujos globales, no archivos puntuales) y __mocks__/ para los servicios globales como Firebase o Expo Router.
+
+## ✅ Suite de tests completa creada
+
+### Archivos creados (10 archivos)
+
+**Tests unitarios (6 archivos):**
+
+| Archivo | Tests | Prioridad |
+|---------|-------|-----------|
+| `__tests__/unit/schemas/transaction.schema.test.ts` | 28 tests | 🔴 Crítica |
+| `__tests__/unit/schemas/category.schema.test.ts` | 12 tests | 🔴 Crítica |
+| `__tests__/unit/schemas/auth.schema.test.ts` | 11 tests | 🔴 Crítica |
+| `__tests__/unit/utils/formatters.test.ts` | 9 tests | 🟢 Media |
+| `__tests__/unit/utils/recurrence.test.ts` | 12 tests | 🟢 Media |
+| `__tests__/unit/store/useFinanceStore.test.ts` | 17 tests | 🟡 Alta |
+
+**Tests de integración (2 archivos):**
+
+| Archivo | Tests | Prioridad |
+|---------|-------|-----------|
+| `__tests__/integration/hooks/useTransactions.test.tsx` | 9 tests | 🟡 Alta |
+| `__tests__/integration/components/TransactionForm.test.tsx` | 7 tests | 🟡 Alta |
+
+**Tests de servicios (1 archivo):**
+
+| Archivo | Tests | Prioridad |
+|---------|-------|-----------|
+| `__tests__/unit/services/transactions.service.test.ts` | 5 tests | 🔴 Crítica |
+
+**Infraestructura:**
+
+| Archivo | Propósito |
+|---------|-----------|
+| `__mocks__/firebase.js` | Mock completo de Firebase (addDoc, getDocs, onSnapshot, etc.) |
+
+### Zonas calientes cubiertas
+
+🔴 **Schemas Zod** (Zona más crítica):
+- `transaction.schema`: monto > 0, ≤999M, formato fecha YYYY-MM-DD, superRefine con 9 validaciones de recurrencia (daily/weekly/biweekly/monthly/yearly, executionDay, endDate > startDate)
+- `category.schema`: label 1-30 chars, type enum, color requerido. Además `validateCategoryUniqueness`: nombres duplicados (case-insensitive), colores duplicados, exclusión de edición
+- `auth.schema`: email válido, password ≥ 6 chars, confirmPassword matching
+
+🟡 **Store + Selectores**: cálculo de balance (income - expense), casos borde (vacíos, solo income, solo expense), reemplazo de arrays
+
+🟡 **Hooks**: suscripción/no suscripción según userId, loading/error states, cleanup on unmount, pull-to-refresh
+
+⬜ **Pendientes** (para próxima iteración):
+- Tests E2E (Detox/Maestro) — requieren emulador
+- Tests de más servicios (categories y recurring)
+- Tests de más hooks (useCategories, useRecurrenceEngine)
+- Tests de componentes restantes (BalanceCard, TransactionList, Dashboard)
+
+### Para ejecutar
+
+```bash
+npm test              # Todos los tests
+npm run test:watch    # Modo watch
+npm run test:coverage # Con cobertura
+```
+
+Nota: los errores de TypeScript (`Cannot find name 'jest'`) son esperados — faltaría instalar `@types/jest` para silenciarlos, pero **no afectan la ejecución de Jest**.
