@@ -32,7 +32,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-router",
     "expo-asset",
     "@react-native-community/datetimepicker",
-    "@react-native-google-signin/google-signin"
+    "@react-native-google-signin/google-signin",
+    [
+      "expo-notifications",
+      {
+        icon: "./assets/icono.png",
+        color: "#4F46E5"
+      }
+    ]
   ],
   experiments: {
     typedRoutes: true
