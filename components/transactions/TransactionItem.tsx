@@ -53,6 +53,9 @@ const TransactionItemComponent: React.FC<TransactionItemProps> = ({
           >
             {transaction.description}
           </Text>
+          {transaction.receiptUrl && (
+            <Ionicons name="camera-outline" size={14} color="#6B7280" />
+          )}
           {transaction.isRecurring && (
             <Ionicons name="repeat" size={14} color="#4F46E5" />
           )}

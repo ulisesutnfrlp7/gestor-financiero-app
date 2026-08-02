@@ -17,10 +17,12 @@ import {
   TouchableOpacity,
   Platform,
   Alert,
+  Image,
 } from 'react-native'
 import DateTimePicker, {
   DateTimePickerEvent,
 } from '@react-native-community/datetimepicker'
+import * as ImagePicker from 'expo-image-picker'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
@@ -38,6 +40,7 @@ import { useFinanceStore, selectAllCategories } from '@/store/useFinanceStore'
 import { Button } from '@/components/ui/Button'
 import { getCurrentDateISO, formatShortDate } from '@/utils/formatters'
 import { RecurringConfig } from './RecurringConfig'
+import { Ionicons } from '@expo/vector-icons'
 
 interface TransactionFormProps {
   initialData?: Transaction
@@ -107,6 +110,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       category:    data.category,
       date:        data.date,
       type:        data.type,
+      receiptUri,
     }
 
     await onSubmit(data.isRecurring
@@ -162,6 +166,57 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   const openDatePicker = () => {
     setShowDatePicker(true)
+  }
+
+  // ─── Comprobante (foto) ─────────────────────────────────────────────────
+  const [receiptUri, setReceiptUri] = useState<string | null>(
+    initialData?.receiptUrl ?? null
+  )
+
+  const pickReceiptFromCamera = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync()
+    if (status !== 'granted') {
+      Alert.alert('Permiso requerido', 'Necesitamos acceso a la cámara para tomar la foto.')
+      return
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    })
+
+    if (!result.canceled && result.assets[0]) {
+      setReceiptUri(result.assets[0].uri)
+    }
+  }
+
+  const pickReceiptFromGallery = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (status !== 'granted') {
+      Alert.alert('Permiso requerido', 'Necesitamos acceso a la galería para seleccionar la foto.')
+      return
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    })
+
+    if (!result.canceled && result.assets[0]) {
+      setReceiptUri(result.assets[0].uri)
+    }
+  }
+
+  const handlePickReceipt = () => {
+    Alert.alert('Comprobante', 'Seleccioná una opción', [
+      { text: '📷 Cámara', onPress: pickReceiptFromCamera },
+      { text: '🖼️ Galería', onPress: pickReceiptFromGallery },
+      { text: '  Cancelar', style: 'cancel' },
+    ])
+  }
+
+  const handleRemoveReceipt = () => {
+    setReceiptUri(null)
   }
 
   // Convertir string YYYY-MM-DD a Date para el picker
@@ -328,6 +383,36 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             <Text className="text-red-500 text-xs mt-1">
               {errors.category.message}
             </Text>
+          )}
+        </View>
+
+        {/* ── Comprobante (foto) ── */}
+        <View>
+          <Text className="text-gray-700 font-medium mb-2">Comprobante</Text>
+          {receiptUri ? (
+            <View className="relative">
+              <Image
+                source={{ uri: receiptUri }}
+                className="w-full h-72 rounded-xl"
+                resizeMode="cover"
+              />
+              <TouchableOpacity
+                onPress={handleRemoveReceipt}
+                className="absolute top-2 right-2 w-8 h-8 bg-black/50 rounded-full items-center justify-center"
+              >
+                <Ionicons name="close" size={18} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={handlePickReceipt}
+              className="bg-white border border-dashed border-gray-300 rounded-xl py-8 items-center justify-center"
+            >
+              <Ionicons name="camera-outline" size={32} color="#9CA3AF" />
+              <Text className="text-gray-500 text-sm mt-2">
+                Agregar Comprobante
+              </Text>
+            </TouchableOpacity>
           )}
         </View>
 

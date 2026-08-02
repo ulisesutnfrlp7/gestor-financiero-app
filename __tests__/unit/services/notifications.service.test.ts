@@ -1,5 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import * as Notifications from 'expo-notifications'
+
+// Mock expo-notifications inline (factory creates fresh mocks each time)
+jest.mock('expo-notifications', () => ({
+  setNotificationHandler: jest.fn(),
+  getPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
+  requestPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
+  setNotificationChannelAsync: jest.fn(() => Promise.resolve()),
+  cancelAllScheduledNotificationsAsync: jest.fn(() => Promise.resolve()),
+  scheduleNotificationAsync: jest.fn(() => Promise.resolve('notification-id')),
+  getAllScheduledNotificationsAsync: jest.fn(() => Promise.resolve([])),
+  SchedulableTriggerInputTypes: { DAILY: 'daily' },
+  AndroidImportance: { DEFAULT: 3 },
+}))
 
 // Mock AsyncStorage
 jest.mock('@react-native-async-storage/async-storage', () => ({
@@ -7,7 +19,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(() => Promise.resolve(null)),
 }))
 
-// expo-notifications is auto-mocked via __mocks__/expo-notifications.js
+const Notifications = require('expo-notifications')
 
 const {
   configureNotifications,
@@ -20,7 +32,9 @@ const {
 
 describe('notifications.service', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    jest.resetAllMocks()
+    Notifications.getPermissionsAsync.mockResolvedValue({ status: 'granted' })
+    Notifications.requestPermissionsAsync.mockResolvedValue({ status: 'granted' })
   })
 
   describe('configureNotifications', () => {
@@ -34,7 +48,7 @@ describe('notifications.service', () => {
 
   describe('requestPermission', () => {
     it('returns true when permission is already granted', async () => {
-      jest.mocked(Notifications.getPermissionsAsync).mockResolvedValue({ status: 'granted' } as any)
+      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'granted' })
 
       const result = await requestPermission()
 
@@ -43,8 +57,8 @@ describe('notifications.service', () => {
     })
 
     it('requests permission if not yet granted', async () => {
-      jest.mocked(Notifications.getPermissionsAsync).mockResolvedValue({ status: 'undetermined' } as any)
-      jest.mocked(Notifications.requestPermissionsAsync).mockResolvedValue({ status: 'granted' } as any)
+      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'undetermined' })
+      Notifications.requestPermissionsAsync.mockResolvedValue({ status: 'granted' })
 
       const result = await requestPermission()
 
@@ -53,8 +67,8 @@ describe('notifications.service', () => {
     })
 
     it('returns false when permission is denied', async () => {
-      jest.mocked(Notifications.getPermissionsAsync).mockResolvedValue({ status: 'undetermined' } as any)
-      jest.mocked(Notifications.requestPermissionsAsync).mockResolvedValue({ status: 'denied' } as any)
+      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'undetermined' })
+      Notifications.requestPermissionsAsync.mockResolvedValue({ status: 'denied' })
 
       const result = await requestPermission()
 
@@ -103,7 +117,7 @@ describe('notifications.service', () => {
 
   describe('isReminderActive', () => {
     it('returns true when AsyncStorage has "true"', async () => {
-      jest.mocked(AsyncStorage.getItem).mockResolvedValue('true')
+      ;(AsyncStorage.getItem as jest.Mock).mockResolvedValue('true')
 
       const result = await isReminderActive()
 
@@ -111,7 +125,7 @@ describe('notifications.service', () => {
     })
 
     it('returns false when AsyncStorage has "false"', async () => {
-      jest.mocked(AsyncStorage.getItem).mockResolvedValue('false')
+      ;(AsyncStorage.getItem as jest.Mock).mockResolvedValue('false')
 
       const result = await isReminderActive()
 
@@ -119,7 +133,7 @@ describe('notifications.service', () => {
     })
 
     it('returns false when AsyncStorage returns null', async () => {
-      jest.mocked(AsyncStorage.getItem).mockResolvedValue(null)
+      ;(AsyncStorage.getItem as jest.Mock).mockResolvedValue(null)
 
       const result = await isReminderActive()
 

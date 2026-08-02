@@ -18,6 +18,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { uploadReceipt } from '@/services/upload.service'
 import type { Transaction, TransactionFormData } from '@/types'
 
 const COLLECTION = 'transactions'
@@ -25,9 +26,6 @@ const COLLECTION = 'transactions'
 /**
  * Suscripción en tiempo real a los movimientos del usuario.
  * Devuelve una función 'unsubscribe' que debe llamarse en el cleanup del useEffect.
- *
- * Se usa onSnapshot (listener) en lugar de getDocs (one-shot) para que la UI
- * se actualice automáticamente si otro dispositivo del mismo usuario agrega datos.
  */
 export const subscribeToTransactions = (
   userId: string,
@@ -52,7 +50,6 @@ export const subscribeToTransactions = (
           category:    data['category'] as string,
           type:        data['type'] as Transaction['type'],
           userId:      data['userId'] as string,
-          // Firestore puede devolver Timestamp o string según si se guardó con serverTimestamp o ISO
           date:      data['date'] instanceof Timestamp
             ? data['date'].toDate().toISOString().split('T')[0]
             : (data['date'] as string),
@@ -63,6 +60,7 @@ export const subscribeToTransactions = (
             ? data['updatedAt'].toDate().toISOString()
             : (data['updatedAt'] as string),
           isRecurring: data['isRecurring'] === true,
+          receiptUrl: data['receiptUrl'] as string | undefined,
         }
       })
       onUpdate(transactions)
@@ -73,7 +71,6 @@ export const subscribeToTransactions = (
 
 /**
  * Obtiene todos los movimientos del usuario (one-shot, sin listener).
- * Útil para pull-to-refresh.
  */
 export const fetchTransactions = async (
   userId: string
@@ -103,12 +100,14 @@ export const fetchTransactions = async (
         ? data['updatedAt'].toDate().toISOString()
         : (data['updatedAt'] as string),
       isRecurring: data['isRecurring'] === true,
+      receiptUrl: data['receiptUrl'] as string | undefined,
     }
   })
 }
 
 /**
  * Crea un nuevo movimiento en Firestore y devuelve su ID generado.
+ * Si hay una URI de comprobante, la sube a Cloudinary primero.
  */
 export const createTransaction = async (
   userId: string,
@@ -116,12 +115,18 @@ export const createTransaction = async (
 ): Promise<string> => {
   const now = new Date().toISOString()
 
-  // date ya viene como string YYYY-MM-DD desde el formulario (validado por Zod).
-  // Se pasa explícitamente para evitar que Firestore lo convierta a Timestamp
-  // y rompa el orderBy('date', 'desc') en la consulta.
+  // Subir comprobante a Cloudinary si existe
+  let receiptUrl: string | undefined
+  if (data.receiptUri) {
+    receiptUrl = await uploadReceipt(data.receiptUri)
+  }
+
+  const { receiptUri, ...cleanData } = data
+
   const docRef = await addDoc(collection(db, COLLECTION), {
-    ...data,
-    date: data.date,
+    ...cleanData,
+    date: cleanData.date,
+    ...(receiptUrl && { receiptUrl }),
     userId,
     createdAt: now,
     updatedAt: now,
@@ -131,17 +136,33 @@ export const createTransaction = async (
 
 /**
  * Actualiza los campos de un movimiento existente.
- * Solo se actualizan los campos provistos (Partial).
+ * Si hay una URI de comprobante nueva, sube la imagen a Cloudinary.
+ * Si receiptUri es null, elimina el comprobante existente.
  */
 export const updateTransaction = async (
   id: string,
   data: Partial<TransactionFormData>
 ): Promise<void> => {
   const docRef = doc(db, COLLECTION, id)
-  await updateDoc(docRef, {
-    ...data,
+
+  const { receiptUri, ...cleanData } = data
+
+  const updateData: Record<string, any> = {
+    ...cleanData,
     updatedAt: new Date().toISOString(),
-  })
+  }
+
+  // Si hay una URI local nueva, subir a Cloudinary
+  if (typeof receiptUri === 'string') {
+    const receiptUrl = await uploadReceipt(receiptUri)
+    updateData.receiptUrl = receiptUrl
+  } else if (receiptUri === null) {
+    // Si es null explícitamente, eliminar el comprobante
+    updateData.receiptUrl = null
+  }
+  // Si es undefined, no tocar el campo (mantener el existente)
+
+  await updateDoc(docRef, updateData)
 }
 
 /**

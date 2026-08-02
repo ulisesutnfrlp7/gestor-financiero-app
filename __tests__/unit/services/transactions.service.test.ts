@@ -1,5 +1,10 @@
 import { subscribeToTransactions, fetchTransactions, createTransaction, updateTransaction, deleteTransaction } from '../../../services/transactions.service'
 
+// Mock the upload service (don't actually upload to Cloudinary)
+jest.mock('../../../services/upload.service', () => ({
+  uploadReceipt: jest.fn((uri: string) => Promise.resolve(`https://cloudinary.com/test/${Date.now()}.jpg`)),
+}))
+
 // Mock firebase module
 jest.mock('firebase/firestore', () => {
   const mockOnSnapshot = jest.fn((_query, onNext, _onError) => {

@@ -39,6 +39,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         icon: "./assets/icono.png",
         color: "#4F46E5"
       }
+    ],
+    [
+      "expo-image-picker",
+      {
+        photosPermission: "La app necesita acceder a tu galería para adjuntar comprobantes.",
+        cameraPermission: "La app necesita acceder a tu cámara para tomar fotos de comprobantes."
+      }
     ]
   ],
   experiments: {

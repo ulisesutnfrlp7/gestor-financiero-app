@@ -28,6 +28,8 @@ export interface Transaction {
   updatedAt: string   // ISO 8601
   /** Indica que el movimiento fue generado desde una plantilla recurrente. */
   isRecurring?: boolean
+  /** URL de la imagen del comprobante en Cloudinary. */
+  receiptUrl?: string
 }
 
 /**
@@ -40,6 +42,8 @@ export interface TransactionFormData {
   category: string
   date: string
   type: TransactionType
+  /** URI local de la imagen seleccionada (antes de subir a Cloudinary). */
+  receiptUri?: string | null
 }
 
 /** Plantilla que define un movimiento a generar periódicamente. */
