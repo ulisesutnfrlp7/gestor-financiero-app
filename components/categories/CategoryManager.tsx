@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
-  Alert,
   ActivityIndicator,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
@@ -22,6 +21,7 @@ import {
 import { categorySchema, validateCategoryUniqueness } from '@/schemas/category.schema'
 import { ColorPicker } from './ColorPicker'
 import { isOnline } from '@/utils/network'
+import { showConfirm, showMessage } from '@/utils/dialog'
 
 export const CategoryManager = () => {
   const userId     = useFinanceStore((state) => state.userId)
@@ -85,9 +85,9 @@ export const CategoryManager = () => {
       })
       setNewLabel('')
       setNewColor('#FF0000')
-      Alert.alert('Éxito', 'Categoría creada exitosamente.')
+      showMessage('Éxito', 'Categoría creada exitosamente.')
     } catch {
-      Alert.alert('Error', 'No se pudo crear la categoría.')
+      showMessage('Error', 'No se pudo crear la categoría.')
     } finally {
       setIsCreating(false)
     }
@@ -125,9 +125,9 @@ export const CategoryManager = () => {
       setEditingId(null)
       setEditLabel('')
       setEditColor('')
-      Alert.alert('Éxito', 'Categoría editada exitosamente.')
+      showMessage('Éxito', 'Categoría editada exitosamente.')
     } catch {
-      Alert.alert('Error', 'No se pudo actualizar la categoría.')
+      showMessage('Error', 'No se pudo actualizar la categoría.')
     } finally {
       setIsEditing(false)
     }
@@ -141,29 +141,25 @@ export const CategoryManager = () => {
       ? `¿Eliminar "${label}"?\n\nSe eliminarán también ${count} movimiento${count !== 1 ? 's' : ''} asociado${count !== 1 ? 's' : ''} a esta categoría.\n\nEsta acción no se puede deshacer.`
       : `¿Eliminar "${label}"?\n\nEsta categoría no tiene movimientos asociados.\n\nEsta acción no se puede deshacer.`
 
-    Alert.alert(
+    showConfirm(
       'Eliminar Categoría',
       msg,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            const online = await isOnline()
-            if (!online) {
-              Alert.alert('Sin conexión', 'Sin conexión a Internet. Verificá tu conexión.')
-              return
-            }
-            try {
-              await deleteCategory(userId, categoryId)
-              Alert.alert('Éxito', 'Categoría eliminada exitosamente.')
-            } catch {
-              Alert.alert('Error', 'No se pudo eliminar la categoría.')
-            }
-          },
-        },
-      ]
+      async () => {
+        const online = await isOnline()
+        if (!online) {
+          showMessage('Sin conexión', 'Sin conexión a Internet. Verificá tu conexión.')
+          return
+        }
+        try {
+          await deleteCategory(userId, categoryId)
+          showMessage('Éxito', 'Categoría eliminada exitosamente.')
+        } catch {
+          showMessage('Error', 'No se pudo eliminar la categoría.')
+        }
+      },
+      'Eliminar',
+      'Cancelar',
+      true
     )
   }
 

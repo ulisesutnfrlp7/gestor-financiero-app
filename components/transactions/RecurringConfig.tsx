@@ -1,13 +1,12 @@
 // Configuración adicional que convierte un movimiento en una plantilla recurrente.
 
-import React, { useState } from 'react'
-import { Platform, Text, TextInput, TouchableOpacity, View } from 'react-native'
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
+import React from 'react'
+import { Text, TextInput, TouchableOpacity, View } from 'react-native'
 import { format } from 'date-fns'
 import type { FieldErrors, UseFormSetValue, UseFormWatch } from 'react-hook-form'
 import type { RecurringFrequency } from '@/types'
 import type { TransactionFormValues } from '@/schemas/transaction.schema'
-import { formatShortDate } from '@/utils/formatters'
+import { DateField } from '@/components/ui/DateField'
 
 interface RecurringConfigProps {
   watch: UseFormWatch<TransactionFormValues>
@@ -35,6 +34,7 @@ const weekdays = [
 
 const toDate = (value: string): Date => {
   const [year, month, day] = value.split('-').map(Number)
+  if (!year || !month || !day) return new Date()
   return new Date(year, month - 1, day)
 }
 
@@ -52,8 +52,6 @@ export const RecurringConfig: React.FC<RecurringConfigProps> = ({
   setValue,
   errors,
 }) => {
-  const [showStartPicker, setShowStartPicker] = useState(false)
-  const [showEndPicker, setShowEndPicker] = useState(false)
   const isRecurring = watch('isRecurring')
   const frequency = watch('frequency')
   const executionDay = watch('executionDay')
@@ -82,11 +80,7 @@ export const RecurringConfig: React.FC<RecurringConfigProps> = ({
     setFrequency(frequency || 'monthly', date)
   }
 
-  const handleStartDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
-    setShowStartPicker(Platform.OS === 'ios')
-    if (!selectedDate) return
-
-    const value = toDateString(selectedDate)
+  const handleStartDateChange = (value: string) => {
     setValue('startDate', value, { shouldValidate: true })
     if (frequency === 'weekly') {
       setValue('executionDay', getWeekday(value), { shouldValidate: true })
@@ -95,11 +89,8 @@ export const RecurringConfig: React.FC<RecurringConfigProps> = ({
     }
   }
 
-  const handleEndDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
-    setShowEndPicker(Platform.OS === 'ios')
-    if (selectedDate) {
-      setValue('endDate', toDateString(selectedDate), { shouldValidate: true })
-    }
+  const handleEndDateChange = (value: string) => {
+    setValue('endDate', value, { shouldValidate: true })
   }
 
   return (
@@ -193,20 +184,11 @@ export const RecurringConfig: React.FC<RecurringConfigProps> = ({
 
           <View>
             <Text className="text-gray-700 font-medium mb-2">Fecha de Inicio</Text>
-            <TouchableOpacity
-              onPress={() => setShowStartPicker(true)}
-              className={`bg-white border rounded-xl px-4 py-3 ${errors.startDate ? 'border-red-400' : 'border-indigo-100'}`}
-            >
-              <Text className="text-gray-900">{formatShortDate(startDate)}</Text>
-            </TouchableOpacity>
-            {showStartPicker && (
-              <DateTimePicker
-                value={toDate(startDate)}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={handleStartDateChange}
-              />
-            )}
+            <DateField
+              value={startDate}
+              onChange={handleStartDateChange}
+              error={Boolean(errors.startDate)}
+            />
             {errors.startDate && <Text className="text-red-500 text-xs mt-1">{errors.startDate.message}</Text>}
           </View>
 
@@ -216,36 +198,26 @@ export const RecurringConfig: React.FC<RecurringConfigProps> = ({
               <TouchableOpacity
                 onPress={() => {
                   setValue('endDate', startDate, { shouldValidate: true })
-                  setShowEndPicker(true)
                 }}
                 className="bg-white border border-dashed border-indigo-200 rounded-xl px-4 py-3"
               >
                 <Text className="text-indigo-600 font-medium">Agregar fecha de fin</Text>
               </TouchableOpacity>
             ) : (
-              <View className="flex-row gap-2">
-                <TouchableOpacity
-                  onPress={() => setShowEndPicker(true)}
-                  className={`flex-1 bg-white border rounded-xl px-4 py-3 ${errors.endDate ? 'border-red-400' : 'border-indigo-100'}`}
-                >
-                  <Text className="text-gray-900">{formatShortDate(endDate)}</Text>
-                </TouchableOpacity>
+              <>
+                <DateField
+                  value={endDate}
+                  onChange={handleEndDateChange}
+                  minimumDate={startDate}
+                  error={Boolean(errors.endDate)}
+                />
                 <TouchableOpacity
                   onPress={() => setValue('endDate', null, { shouldValidate: true })}
-                  className="bg-white border border-red-100 rounded-xl px-4 justify-center"
+                  className="mt-2 self-start"
                 >
-                  <Text className="text-red-600 font-medium">Quitar</Text>
+                  <Text className="text-red-600 font-medium text-sm">Quitar fecha de fin</Text>
                 </TouchableOpacity>
-              </View>
-            )}
-            {showEndPicker && endDate !== null && (
-              <DateTimePicker
-                value={toDate(endDate)}
-                mode="date"
-                minimumDate={toDate(startDate)}
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={handleEndDateChange}
-              />
+              </>
             )}
             {errors.endDate && <Text className="text-red-500 text-xs mt-1">{errors.endDate.message}</Text>}
           </View>

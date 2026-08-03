@@ -1,14 +1,14 @@
 // components/transactions/TransactionFilters.tsx
 // Barra de filtros para el historial de movimientos.
 // Filtra por tipo (ingreso/gasto), categoría y rango de fechas.
+// Las fechas usan DateField (cross-platform).
 
-import React, { useState, useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform } from 'react-native'
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Ionicons } from '@expo/vector-icons'
+import { DateField } from '@/components/ui/DateField'
 import type { TransactionType } from '@/types'
 import { useFinanceStore, selectAllCategories } from '@/store/useFinanceStore'
-import { formatShortDate } from '@/utils/formatters'
 
 export interface Filters {
   type: TransactionType | 'all'
@@ -27,8 +27,8 @@ export const TransactionFilters: React.FC<TransactionFiltersProps> = ({
   filters,
   onChange,
 }) => {
-  const [showDateFrom, setShowDateFrom] = useState(false)
-  const [showDateTo, setShowDateTo] = useState(false)
+  const isWeb = Platform.OS === 'web'
+  const [isSearchFocused, setIsSearchFocused] = useState(false)
   const allCategories = useFinanceStore(selectAllCategories)
   const categories = useMemo(
     () => allCategories.filter((c) => c.type === (filters.type === 'all' ? 'expense' : filters.type)),
@@ -39,16 +39,6 @@ export const TransactionFilters: React.FC<TransactionFiltersProps> = ({
     onChange({ ...filters, ...partial })
   }
 
-  const handleDateFromChange = (_event: DateTimePickerEvent, date?: Date) => {
-    setShowDateFrom(false)
-    if (date) setFilter({ dateFrom: date.toISOString().split('T')[0] })
-  }
-
-  const handleDateToChange = (_event: DateTimePickerEvent, date?: Date) => {
-    setShowDateTo(false)
-    if (date) setFilter({ dateTo: date.toISOString().split('T')[0] })
-  }
-
   const clearFilters = () => {
     onChange({ type: 'all', category: '', dateFrom: '', dateTo: '', searchQuery: '' })
   }
@@ -57,19 +47,97 @@ export const TransactionFilters: React.FC<TransactionFiltersProps> = ({
 
   return (
     <View className="px-5 pb-3">
+      {/* Fechas: siempre visibles para mantener layout estable */}
+      <View className="flex-row items-stretch gap-2 mt-3 mb-4" style={{ zIndex: 2 }}>
+        <View className="flex-1">
+          <DateField
+            value={filters.dateFrom}
+            onChange={(value) => setFilter({ dateFrom: value })}
+            className="h-11 justify-center px-3 py-2.5 rounded-lg border border-gray-200 bg-white"
+            textClassName="text-sm text-gray-600"
+            placeholder="Seleccionar fecha"
+          />
+        </View>
+        <View className="flex-1">
+          <DateField
+            value={filters.dateTo}
+            onChange={(value) => setFilter({ dateTo: value })}
+            className="h-11 justify-center px-3 py-2.5 rounded-lg border border-gray-200 bg-white"
+            textClassName="text-sm text-gray-600"
+            placeholder="Seleccionar fecha"
+          />
+        </View>
+      </View>
+
       {/* Búsqueda por descripción */}
-      <View className="flex-row items-center bg-white border border-gray-200 rounded-lg px-3 py-2 mb-4 mt-3">
-        <Ionicons name="search-outline" size={18} color="#9CA3AF" />
-        <TextInput
-          placeholder="Buscar por descripción..."
-          value={filters.searchQuery}
-          onChangeText={(text) => setFilter({ searchQuery: text })}
-          className="flex-1 ml-2 text-sm text-gray-900"
-          placeholderTextColor="#9CA3AF"
-          clearButtonMode="while-editing"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
+      <View
+        className={`flex-row items-center rounded-lg px-3 py-2 mb-4 bg-white ${
+          isWeb ? '' : `border ${isSearchFocused ? 'border-indigo-500' : 'border-gray-200'}`
+        }`}
+        style={
+          isWeb
+            ? ({
+                zIndex: 1,
+                boxSizing: 'border-box',
+                // borderWidth fijo en 1px para que el layout NO se mueva al enfocar.
+                // En reposo el borderColor es transparente (invisible), en foco azul.
+                borderWidth: 1,
+                borderColor: isSearchFocused ? '#6366F1' : 'transparent',
+                borderStyle: 'solid',
+                boxShadow: 'none',
+                WebkitBoxShadow: 'none',
+                MozBoxShadow: 'none',
+                outlineStyle: 'none',
+                outlineWidth: 0,
+                outlineColor: 'transparent',
+                backgroundColor: '#FFFFFF',
+              } as unknown as object)
+            : { zIndex: 1 }
+        }
+      >
+        <Ionicons name="search-outline" size={18} color="#4F46E5" />
+        {isWeb ? (
+          <input
+            type="text"
+            placeholder="Buscar por descripción..."
+            value={filters.searchQuery}
+            onChange={(e) => setFilter({ searchQuery: e.target.value })}
+            onFocus={() => setIsSearchFocused(true)}
+            onBlur={() => setIsSearchFocused(false)}
+            id="history-search-input"
+            style={{
+              flex: 1,
+              marginLeft: 8,
+              fontSize: 14,
+              color: '#111827',
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              boxShadow: 'none',
+              WebkitBoxShadow: 'none',
+              MozBoxShadow: 'none',
+              appearance: 'none',
+              WebkitAppearance: 'none',
+              MozAppearance: 'none',
+              padding: 0,
+            }}
+          />
+        ) : (
+          <TextInput
+            placeholder="Buscar por descripción..."
+            value={filters.searchQuery}
+            onChangeText={(text) => setFilter({ searchQuery: text })}
+            onFocus={() => setIsSearchFocused(true)}
+            onBlur={() => setIsSearchFocused(false)}
+            className="flex-1 ml-2 text-sm text-gray-900"
+            placeholderTextColor="#9CA3AF"
+            clearButtonMode="while-editing"
+            autoCapitalize="none"
+            autoCorrect={false}
+            nativeID="history-search-input"
+            testID="history-search-input"
+          />
+        )}
         {filters.searchQuery !== '' && (
           <TouchableOpacity onPress={() => setFilter({ searchQuery: '' })}>
             <Ionicons name="close-circle" size={18} color="#9CA3AF" />
@@ -102,32 +170,6 @@ export const TransactionFilters: React.FC<TransactionFiltersProps> = ({
             </TouchableOpacity>
           )
         })}
-      </View>
-
-      {/* Fechas */}
-      <View className="flex-row gap-2 mb-3">
-        <TouchableOpacity
-          onPress={() => setShowDateFrom(true)}
-          className={`flex-1 flex-row items-center gap-1 px-3 py-2 rounded-lg border ${
-            filters.dateFrom ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-white'
-          }`}
-        >
-          <Ionicons name="calendar-outline" size={14} color="#6B7280" />
-          <Text className="text-xs text-gray-600">
-            {filters.dateFrom ? formatShortDate(filters.dateFrom) : 'Desde'}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setShowDateTo(true)}
-          className={`flex-1 flex-row items-center gap-1 px-3 py-2 rounded-lg border ${
-            filters.dateTo ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-white'
-          }`}
-        >
-          <Ionicons name="calendar-outline" size={14} color="#6B7280" />
-          <Text className="text-xs text-gray-600">
-            {filters.dateTo ? formatShortDate(filters.dateTo) : 'Hasta'}
-          </Text>
-        </TouchableOpacity>
       </View>
 
       {/* Categorías (solo cuando se filtra por un tipo específico) */}
@@ -181,24 +223,6 @@ export const TransactionFilters: React.FC<TransactionFiltersProps> = ({
         <TouchableOpacity onPress={clearFilters} className="mt-2 self-start">
           <Text className="text-indigo-600 text-xs font-medium">Limpiar Filtros</Text>
         </TouchableOpacity>
-      )}
-
-      {/* DatePickers ocultos */}
-      {showDateFrom && (
-        <DateTimePicker
-          value={filters.dateFrom ? new Date(filters.dateFrom + 'T00:00:00') : new Date()}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleDateFromChange}
-        />
-      )}
-      {showDateTo && (
-        <DateTimePicker
-          value={filters.dateTo ? new Date(filters.dateTo + 'T00:00:00') : new Date()}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleDateToChange}
-        />
       )}
     </View>
   )

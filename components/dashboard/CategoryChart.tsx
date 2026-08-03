@@ -3,7 +3,7 @@
 // para un tipo de movimiento (income o expense).
 
 import React, { useMemo } from 'react'
-import { View, Text, Dimensions } from 'react-native'
+import { View, Text, Dimensions, Platform } from 'react-native'
 import { PieChart } from 'react-native-chart-kit'
 import type { Transaction, TransactionType } from '@/types'
 import { useFinanceStore, selectAllCategories } from '@/store/useFinanceStore'
@@ -25,6 +25,7 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({
   transactions,
   type,
 }) => {
+  const isWeb = Platform.OS === 'web'
   const screenWidth = Dimensions.get('window').width
   const isExpense = type === 'expense'
   const title = isExpense ? 'Gastos por Categoría' : 'Ingresos por Categoría'
@@ -64,8 +65,9 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({
 
   if (chartData.length === 0) return null
 
-  const chartWidth = screenWidth - 40
-  const chartHeight = chartWidth * 0.65
+  const baseWidth = screenWidth - 40
+  const chartWidth = isWeb ? Math.min(baseWidth, 420) : baseWidth
+  const chartHeight = isWeb ? chartWidth * 0.58 : chartWidth * 0.65
 
   return (
     <View className="mx-5 mt-3 bg-white rounded-xl p-4 border border-gray-100">

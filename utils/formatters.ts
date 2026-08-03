@@ -46,6 +46,16 @@ export const formatShortDate = (dateString: string): string => {
 }
 
 /**
+ * Construye el subtitulo del dashboard para un rango de fechas.
+ */
+export const formatDateRangeSubtitle = (dateFrom: string, dateTo: string): string => {
+  if (!dateFrom && !dateTo) return 'Resumen General'
+  const from = dateFrom ? formatShortDate(dateFrom) : '—'
+  const to = dateTo ? formatShortDate(dateTo) : '—'
+  return `Del ${from} al ${to}`
+}
+
+/**
  * Devuelve la fecha actual en formato YYYY-MM-DD para usar como valor
  * por defecto en el campo de fecha del formulario.
  */

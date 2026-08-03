@@ -6,7 +6,7 @@
 // es del componente TransactionForm).
 
 import React from 'react'
-import { View, Text, Alert } from 'react-native'
+import { View, Text } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { TransactionForm } from '@/components/transactions/TransactionForm'
@@ -15,6 +15,7 @@ import { createTransaction } from '@/services/transactions.service'
 import { createRecurringTemplate } from '@/services/recurring.service'
 import type { RecurringFormData, TransactionFormData } from '@/types'
 import { isOnline } from '@/utils/network'
+import { showMessage } from '@/utils/dialog'
 
 export default function NewTransactionScreen() {
   const userId = useFinanceStore((state) => state.userId)
@@ -27,19 +28,19 @@ export default function NewTransactionScreen() {
 
     const online = await isOnline()
     if (!online) {
-      Alert.alert('Sin conexión', 'Sin conexión a Internet. Verificá tu conexión.')
+      showMessage('Sin conexión', 'Sin conexión a Internet. Verificá tu conexión.')
       return
     }
 
     if (data.recurring) {
       await createRecurringTemplate(userId, data.recurring)
-      Alert.alert('Éxito', 'Plantilla recurrente creada exitosamente.')
+      showMessage('Éxito', 'Plantilla recurrente creada exitosamente.')
       router.back()
       return
     }
 
     await createTransaction(userId, data)
-    Alert.alert('Éxito', 'Movimiento registrado exitosamente.')
+    showMessage('Éxito', 'Movimiento registrado exitosamente.')
     router.back()
   }
 

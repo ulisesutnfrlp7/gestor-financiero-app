@@ -6,12 +6,13 @@
 // no cuando cambia cualquier parte del store.
 
 import React, { useState, useMemo } from 'react'
-import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { signOut } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
+import { showConfirm, showMessage } from '@/utils/dialog'
 import { useFinanceStore } from '@/store/useFinanceStore'
 import { BalanceCard } from '@/components/dashboard/BalanceCard'
 import { SummaryItem } from '@/components/dashboard/SummaryItem'
@@ -19,6 +20,7 @@ import { CategoryChart } from '@/components/dashboard/CategoryChart'
 import { DateRangeFilter } from '@/components/dashboard/DateRangeFilter'
 import { deleteUserAccount } from '@/services/users.service'
 import { isOnline } from '@/utils/network'
+import { formatDateRangeSubtitle } from '@/utils/formatters'
 
 export default function DashboardScreen() {
   const transactions = useFinanceStore((state) => state.transactions)
@@ -59,78 +61,64 @@ export default function DashboardScreen() {
   const transactionCount = filteredTransactions.length
 
   const handleLogout = () => {
-    Alert.alert(
+    showConfirm(
       'Cerrar Sesión',
       '¿Estás seguro?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Cerrar sesión',
-          style: 'destructive',
-          onPress: () => signOut(auth),
-        },
-      ]
+      () => signOut(auth),
+      'Cerrar sesión',
+      'Cancelar',
+      true
     )
   }
 
   const handleDeleteAccount = () => {
-    Alert.alert(
+    showConfirm(
       'Eliminar Cuenta',
       'Todos tus datos se perderán. Esta acción no se puede deshacer.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              '¿Estás seguro?',
-              'Se eliminarán: todas tus transacciones, plantillas recurrentes y categorías.',
-              [
-                { text: 'Cancelar', style: 'cancel' },
-                {
-                  text: 'Sí, eliminar todo',
-                  style: 'destructive',
-                  onPress: async () => {
-                    if (!userId) return
+      () => {
+        showConfirm(
+          '¿Estás seguro?',
+          'Se eliminarán: todas tus transacciones, plantillas recurrentes y categorías.',
+          async () => {
+            if (!userId) return
 
-                    const online = await isOnline()
-                    if (!online) {
-                      Alert.alert('Sin conexión', 'Necesitás conexión a Internet para eliminar la cuenta.')
-                      return
-                    }
+            const online = await isOnline()
+            if (!online) {
+              showMessage('Sin conexión', 'Necesitás conexión a Internet para eliminar la cuenta.')
+              return
+            }
 
-                    setIsDeleting(true)
-                    try {
-                      await deleteUserAccount(userId)
-                      // La redirección la maneja onAuthStateChanged en _layout.tsx
-                    } catch (err: unknown) {
-                      const fbErr = err as { code?: string; message?: string }
-                      // Si el error es de Auth (sesión expirada, token vencido), los datos de Firestore
-                      // ya se eliminaron. No mostrar error al usuario.
-                      if (
-                        fbErr.code === 'auth/requires-recent-login' ||
-                        fbErr.code === 'auth/user-token-expired' ||
-                        fbErr.code === 'auth/invalid-user-token'
-                      ) {
-                        // Datos eliminados, solo falló Auth. La redirección se maneja sola.
-                      } else {
-                        Alert.alert('Error', 'No se pudo eliminar la cuenta. Intentalo de nuevo más tarde.')
-                      }
-                    }
-                  },
-                },
-              ]
-            )
+            setIsDeleting(true)
+            try {
+              await deleteUserAccount(userId)
+              // La redirección la maneja onAuthStateChanged en _layout.tsx
+            } catch (err: unknown) {
+              const fbErr = err as { code?: string; message?: string }
+              // Si el error es de Auth (sesión expirada, token vencido), los datos de Firestore
+              // ya se eliminaron. No mostrar error al usuario.
+              if (
+                fbErr.code === 'auth/requires-recent-login' ||
+                fbErr.code === 'auth/user-token-expired' ||
+                fbErr.code === 'auth/invalid-user-token'
+              ) {
+                // Datos eliminados, solo falló Auth. La redirección se maneja sola.
+              } else {
+                showMessage('Error', 'No se pudo eliminar la cuenta. Intentalo de nuevo más tarde.')
+              }
+            }
           },
-        },
-      ]
+          'Sí, eliminar todo',
+          'Cancelar',
+          true
+        )
+      },
+      'Eliminar',
+      'Cancelar',
+      true
     )
   }
 
-  const subtitle = dateFrom || dateTo
-    ? `Del ${dateFrom ? dateFrom : '—'} al ${dateTo ? dateTo : '—'}`
-    : 'Resumen General'
+  const subtitle = formatDateRangeSubtitle(dateFrom, dateTo)
 
   // NUEVO: Early return para la pantalla de eliminación
   if (isDeleting) {

@@ -9,6 +9,7 @@
 // 5. Controlar la visibilidad del Splash Screen
 
 import { useEffect, useRef } from 'react'
+import { Platform } from 'react-native'
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
@@ -24,13 +25,70 @@ import { useRecurrenceEngine } from '@/hooks/useRecurrenceEngine'
 import { seedDefaultCategories } from '@/services/categories.service'
 import '../global.css'
 
+const IS_WEB = Platform.OS === 'web'
+
 // Mantiene el splash screen visible hasta que completemos la inicialización
-SplashScreen.preventAutoHideAsync()
+// (no aplica en web — expo-splash-screen no tiene efecto en navegador)
+if (!IS_WEB) {
+  SplashScreen.preventAutoHideAsync()
+}
 
 export default function RootLayout() {
   const router = useRouter()
   const setUserId = useFinanceStore((state) => state.setUserId)
   const splashHidden = useRef(false)
+
+  useEffect(() => {
+    if (IS_WEB) {
+      document.title = 'Gestor Financiero'
+
+      const styleId = 'web-focus-styles'
+      if (!document.getElementById(styleId)) {
+        const style = document.createElement('style')
+        style.id = styleId
+        style.textContent = `
+          input:focus,
+          textarea:focus,
+          select:focus,
+          input:focus-visible,
+          textarea:focus-visible,
+          select:focus-visible {
+            outline: none !important;
+            border-color: #6366f1 !important;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important;
+          }
+
+          #history-search-input,
+          #history-search-input:focus,
+          #history-search-input:focus-visible,
+          #history-search-input input,
+          #history-search-input textarea,
+          #history-search-input input:focus,
+          #history-search-input textarea:focus,
+          #history-search-input input:focus-visible,
+          #history-search-input textarea:focus-visible {
+            border: none !important;
+            border-width: 0 !important;
+            border-color: transparent !important;
+            outline: none !important;
+            outline-width: 0 !important;
+            box-shadow: none !important;
+            -webkit-appearance: none !important;
+            appearance: none !important;
+            background: transparent !important;
+          }
+
+          #history-search-input::-webkit-search-decoration,
+          #history-search-input::-webkit-search-cancel-button,
+          #history-search-input::-webkit-search-results-button,
+          #history-search-input::-webkit-search-results-decoration {
+            -webkit-appearance: none !important;
+          }
+        `
+        document.head.appendChild(style)
+      }
+    }
+  }, [])
 
   // Suscripciones Firestore: activas una vez que userId esté seteado
   useTransactions()
@@ -52,7 +110,9 @@ export default function RootLayout() {
 
       if (!splashHidden.current) {
         splashHidden.current = true
-        await SplashScreen.hideAsync()
+        if (!IS_WEB) {
+          await SplashScreen.hideAsync()
+        }
       }
     })
 

@@ -6,9 +6,10 @@
 // - Al cambiar el 'tipo' (ingreso/gasto), se resetea la categoría porque
 //   las categorías son distintas por tipo
 // - 'amount' se trata como string en el form y se convierte a número en onSubmit
-// - La fecha usa un DatePicker nativo (@react-native-community/datetimepicker)
+// - La fecha usa DateField (cross-platform): picker nativo en RN, <input type="date"> en web
+// - El comprobante (foto) usa ImagePicker en nativo y <input type="file"> en web
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef } from 'react'
 import {
   View,
   Text,
@@ -16,12 +17,8 @@ import {
   TextInput,
   TouchableOpacity,
   Platform,
-  Alert,
   Image,
 } from 'react-native'
-import DateTimePicker, {
-  DateTimePickerEvent,
-} from '@react-native-community/datetimepicker'
 import * as ImagePicker from 'expo-image-picker'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -38,9 +35,13 @@ import type {
 } from '@/types'
 import { useFinanceStore, selectAllCategories } from '@/store/useFinanceStore'
 import { Button } from '@/components/ui/Button'
-import { getCurrentDateISO, formatShortDate } from '@/utils/formatters'
+import { DateField } from '@/components/ui/DateField'
+import { getCurrentDateISO } from '@/utils/formatters'
 import { RecurringConfig } from './RecurringConfig'
 import { Ionicons } from '@expo/vector-icons'
+import { showConfirm, showDialog, showMessage } from '@/utils/dialog'
+
+const IS_WEB = Platform.OS === 'web'
 
 interface TransactionFormProps {
   initialData?: Transaction
@@ -55,7 +56,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   onSubmit,
   onCancel,
 }) => {
-  const [showDatePicker, setShowDatePicker] = useState(false)
   const defaultDate = initialData?.date
     ? initialData.date.split('T')[0]
     : recurringTemplate?.startDate ?? getCurrentDateISO()
@@ -98,7 +98,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   const onFormSubmit = async (data: TransactionFormValues) => {
     if (recurringTemplate && !data.isRecurring) {
-      Alert.alert(
+      showMessage(
         'Movimiento Recurrente',
         'No podés hacer que un movimiento recurrente vuelva a ser de una vez. Creá el movimiento de manera natural a través del formulario de creación.'
       )
@@ -139,44 +139,39 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   const handleCancel = () => {
     if (hasChanges()) {
-      Alert.alert(
+      showConfirm(
         '¿Estás seguro?',
         'Perderás el progreso del movimiento.',
-        [
-          { text: 'Seguir editando', style: 'cancel' },
-          {
-            text: 'Salir',
-            style: 'destructive',
-            onPress: () => onCancel?.(),
-          },
-        ]
+        () => onCancel?.(),
+        'Salir',
+        'Seguir editando',
+        true
       )
     } else {
       onCancel?.()
     }
   }
 
-  const handleDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === 'ios')
-    if (selectedDate) {
-      const formatted = selectedDate.toISOString().split('T')[0]
-      setValue('date', formatted, { shouldValidate: true })
-    }
-  }
-
-  const openDatePicker = () => {
-    setShowDatePicker(true)
-  }
-
   // ─── Comprobante (foto) ─────────────────────────────────────────────────
   const [receiptUri, setReceiptUri] = useState<string | null>(
     initialData?.receiptUrl ?? null
   )
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Web: <input type="file"> → leer como data URI
+  const handleWebFile = (file: File | undefined) => {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      setReceiptUri(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
 
   const pickReceiptFromCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync()
     if (status !== 'granted') {
-      Alert.alert('Permiso requerido', 'Necesitamos acceso a la cámara para tomar la foto.')
+      showMessage('Permiso requerido', 'Necesitamos acceso a la cámara para tomar la foto.')
       return
     }
 
@@ -193,7 +188,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const pickReceiptFromGallery = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (status !== 'granted') {
-      Alert.alert('Permiso requerido', 'Necesitamos acceso a la galería para seleccionar la foto.')
+      showMessage('Permiso requerido', 'Necesitamos acceso a la galería para seleccionar la foto.')
       return
     }
 
@@ -208,7 +203,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   }
 
   const handlePickReceipt = () => {
-    Alert.alert('Comprobante', 'Seleccioná una opción', [
+    if (IS_WEB) {
+      fileInputRef.current?.click()
+      return
+    }
+    showDialog('Comprobante', 'Seleccioná una opción', [
       { text: '📷 Cámara', onPress: pickReceiptFromCamera },
       { text: '🖼️ Galería', onPress: pickReceiptFromGallery },
       { text: '    Cancelar', style: 'cancel' },
@@ -217,15 +216,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   const handleRemoveReceipt = () => {
     setReceiptUri(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
   }
-
-  // Convertir string YYYY-MM-DD a Date para el picker
-  const dateValue = (() => {
-    const d = watch('date')
-    if (!d) return new Date()
-    const parts = d.split('-')
-    return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
-  })()
 
   return (
     <ScrollView
@@ -318,31 +312,24 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           )}
         </View>
 
-        {/* ── Fecha (DatePicker nativo) ── */}
+        {/* ── Fecha (DateField cross-platform) ── */}
         <View>
           <Text className="text-gray-700 font-medium mb-2">Fecha</Text>
-          <TouchableOpacity
-            onPress={openDatePicker}
-            className={`bg-white border rounded-xl px-4 py-3.5 ${
-              errors.date ? 'border-red-400' : 'border-gray-200'
-            }`}
-          >
-            <Text className="text-gray-900 text-base">
-              {formatShortDate(watch('date'))}
-            </Text>
-          </TouchableOpacity>
+          <Controller
+            control={control}
+            name="date"
+            render={({ field: { onChange, value } }) => (
+              <DateField
+                value={value}
+                onChange={onChange}
+                error={Boolean(errors.date)}
+              />
+            )}
+          />
           {errors.date && (
             <Text className="text-red-500 text-xs mt-1">
               {errors.date.message}
             </Text>
-          )}
-          {showDatePicker && (
-            <DateTimePicker
-              value={dateValue}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={handleDateChange}
-            />
           )}
         </View>
 
@@ -409,10 +396,25 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               className="bg-white border border-dashed border-gray-300 rounded-xl py-8 items-center justify-center"
             >
               <Ionicons name="camera-outline" size={32} color="#9CA3AF" />
-              <Text className="text-gray-500 text-sm mt-2">
+              <Text
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                className="text-gray-500 text-sm mt-2 px-4 text-center"
+              >
                 Agregar Comprobante
               </Text>
             </TouchableOpacity>
+          )}
+
+          {/* Input file oculto para web */}
+          {IS_WEB && (
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={(e) => handleWebFile(e.target.files?.[0])}
+            />
           )}
         </View>
 

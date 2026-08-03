@@ -1,23 +1,82 @@
 // Botón "Continuar con Google" reutilizable para login y registro.
-// Usa require() dinámico dentro del handler para evitar que Metro
-// cargue el módulo nativo en tiempo de bundle. Así Expo Go nunca
-// crashea — solo muestra un Alert amigable si el módulo no existe.
+//
+// Multiplataforma:
+//   - Nativo: usa @react-native-google-signin/google-signin con require() dinámico
+//     para que Expo Go nunca cargue el módulo nativo en tiempo de bundle.
+//   - Web: usa signInWithPopup de Firebase (controlador de Google Auth).
 
 import React, { useState } from 'react'
-import { View, Text, TouchableOpacity, ActivityIndicator, Alert } from 'react-native'
+import { View, Text, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { signInWithCredential, GoogleAuthProvider } from 'firebase/auth'
+import {
+  signInWithCredential,
+  signInWithPopup,
+  GoogleAuthProvider,
+} from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { createUserProfile } from '@/services/users.service'
 import { isOnline } from '@/utils/network'
+
+const IS_WEB = Platform.OS === 'web'
 
 interface GoogleSignInButtonProps {
   /** 'login' solo autentica; 'register' además crea el perfil en Firestore */
   mode: 'login' | 'register'
 }
 
+async function handlePostAuth(uid: string, email: string, mode: 'login' | 'register') {
+  if (mode === 'register') {
+    await createUserProfile(uid, email)
+  }
+  // La redirección la maneja onAuthStateChanged en _layout.tsx
+}
+
 export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({ mode }) => {
   const [isLoading, setIsLoading] = useState(false)
+
+  const handleWebSignIn = async () => {
+    const provider = new GoogleAuthProvider()
+    const userCredential = await signInWithPopup(auth, provider)
+    const user = userCredential.user
+    await handlePostAuth(user.uid, user.email ?? '', mode)
+  }
+
+  const handleNativeSignIn = async () => {
+    // Import dinámico — solo se evalúa al tocar el botón
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { GoogleSignin, statusCodes } = require('@react-native-google-signin/google-signin') as {
+      GoogleSignin: {
+        configure: (config: { webClientId: string }) => void
+        hasPlayServices: (opts: { showPlayServicesUpdateDialog: boolean }) => Promise<void>
+        signOut: () => Promise<void>
+        signIn: () => Promise<{ data?: { idToken?: string } }>
+      }
+      statusCodes: {
+        SIGN_IN_CANCELLED: string
+        PLAY_SERVICES_NOT_AVAILABLE: string
+      }
+    }
+
+    // Configurar si no se configuró antes
+    GoogleSignin.configure({
+      webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '',
+    })
+
+    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true })
+    // Cerrar sesión previa para forzar el selector de cuentas
+    await GoogleSignin.signOut()
+    const userInfo = await GoogleSignin.signIn()
+    const idToken = userInfo.data?.idToken
+
+    if (!idToken) {
+      Alert.alert('Error', 'No se pudo obtener el token de Google.')
+      return
+    }
+
+    const credential = GoogleAuthProvider.credential(idToken)
+    const userCredential = await signInWithCredential(auth, credential)
+    await handlePostAuth(userCredential.user.uid, userCredential.user.email ?? '', mode)
+  }
 
   const handleGoogleSignIn = async () => {
     const online = await isOnline()
@@ -27,46 +86,11 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({ mode }) 
     }
     setIsLoading(true)
     try {
-      // Import dinámico — solo se evalúa al tocar el botón
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { GoogleSignin, statusCodes } = require('@react-native-google-signin/google-signin') as {
-        GoogleSignin: {
-          configure: (config: { webClientId: string }) => void
-          hasPlayServices: (opts: { showPlayServicesUpdateDialog: boolean }) => Promise<void>
-          signOut: () => Promise<void>
-          signIn: () => Promise<{ data?: { idToken?: string } }>
-        }
-        statusCodes: {
-          SIGN_IN_CANCELLED: string
-          PLAY_SERVICES_NOT_AVAILABLE: string
-        }
+      if (IS_WEB) {
+        await handleWebSignIn()
+      } else {
+        await handleNativeSignIn()
       }
-
-      // Configurar si no se configuró antes
-      GoogleSignin.configure({
-        webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '',
-      })
-
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true })
-      // Cerrar sesión previa para forzar el selector de cuentas
-      await GoogleSignin.signOut()
-      const userInfo = await GoogleSignin.signIn()
-      const idToken = userInfo.data?.idToken
-
-      if (!idToken) {
-        Alert.alert('Error', 'No se pudo obtener el token de Google.')
-        return
-      }
-
-      const credential = GoogleAuthProvider.credential(idToken)
-      const userCredential = await signInWithCredential(auth, credential)
-
-      // Si es registro, crear perfil en Firestore
-      if (mode === 'register') {
-        await createUserProfile(userCredential.user.uid, userCredential.user.email ?? '')
-      }
-
-      // La redirección la maneja onAuthStateChanged en _layout.tsx
     } catch (err: unknown) {
       const error = err as { code?: string; message?: string }
 
@@ -84,7 +108,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({ mode }) 
         return
       }
 
-      if (error.code === 'SIGN_IN_CANCELLED') {
+      if (error.code === 'SIGN_IN_CANCELLED' || error.code === 'auth/popup-closed-by-user') {
         // Usuario canceló — no mostrar error
       } else if (error.code === 'PLAY_SERVICES_NOT_AVAILABLE') {
         Alert.alert('Error', 'Google Play Services no están disponibles en este dispositivo.')

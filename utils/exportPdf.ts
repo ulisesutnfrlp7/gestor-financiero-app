@@ -1,12 +1,18 @@
 // utils/exportPdf.ts
 // Genera y comparte un PDF con los movimientos filtrados del historial.
-// Usa expo-print (HTML → PDF) + expo-sharing (share sheet nativo).
+//
+// Multiplataforma:
+//   - Nativo: expo-print (HTML → PDF) + expo-sharing (share sheet nativo)
+//   - Web: genera y descarga un PDF directo con jsPDF
+//
+// Nota: los módulos nativos (expo-print, expo-sharing, expo-file-system) se
+// cargan con require() dinámico SOLO en nativo, para no incluirlos en el bundle web.
 
-import * as Print from 'expo-print'
-import * as Sharing from 'expo-sharing'
-import * as FileSystem from 'expo-file-system/legacy'
+import { Platform } from 'react-native'
 import type { Transaction, CustomCategory } from '@/types'
 import type { Filters } from '@/components/transactions/TransactionFilters'
+
+const IS_WEB = Platform.OS === 'web'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -109,10 +115,14 @@ const buildHtmlTemplate = (
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestor Financiero — Historial</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; background: #F9FAFB; color: #111827; }
     table { border-collapse: collapse; width: 100%; }
+    @media print {
+      body { background: #fff; }
+    }
   </style>
 </head>
 <body>
@@ -181,6 +191,86 @@ const buildHtmlTemplate = (
 </html>`
 }
 
+// ─── Exportar en web (descarga directa) ─────────────────────────────────────
+
+const exportWebPdf = async (
+  transactions: Transaction[],
+  categories: CustomCategory[],
+  filters: Filters,
+  fileName: string,
+): Promise<void> => {
+  const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+    import('jspdf/dist/jspdf.es.min.js'),
+    import('jspdf-autotable/es'),
+  ])
+
+  const categoryMap = new Map(categories.map((c) => [c.id, c]))
+  const totalIncome = transactions
+    .filter((t) => t.type === 'income')
+    .reduce((sum, t) => sum + t.amount, 0)
+  const totalExpense = transactions
+    .filter((t) => t.type === 'expense')
+    .reduce((sum, t) => sum + t.amount, 0)
+  const balance = totalIncome - totalExpense
+
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(18)
+  doc.text('Gestor Financiero', 40, 44)
+  doc.setFontSize(12)
+  doc.setFont('helvetica', 'normal')
+  doc.text('Historial de Movimientos', 40, 64)
+
+  const summary = buildFilterSummary(filters, categories)
+  doc.setFontSize(9)
+  doc.setTextColor(79, 70, 229)
+  doc.text(`Filtros: ${summary}`, 40, 84)
+
+  doc.setFontSize(10)
+  doc.setTextColor(31, 41, 55)
+  doc.text(`Ingresos: ${formatCurrencyLocal(totalIncome)}`, 40, 108)
+  doc.text(`Gastos: ${formatCurrencyLocal(totalExpense)}`, 210, 108)
+  doc.text(`Balance: ${formatCurrencyLocal(balance)}`, 360, 108)
+  doc.text(`Movimientos: ${transactions.length}`, 510, 108)
+
+  const rows = transactions.map((t) => {
+    const cat = categoryMap.get(t.category)
+    return [
+      formatDateLocal(t.date),
+      t.description,
+      cat?.label ?? t.category,
+      t.type === 'income' ? 'Ingreso' : 'Gasto',
+      formatCurrencyLocal(t.amount),
+    ]
+  })
+
+  autoTable(doc, {
+    startY: 124,
+    head: [['Fecha', 'Descripcion', 'Categoria', 'Tipo', 'Monto']],
+    body: rows,
+    styles: {
+      font: 'helvetica',
+      fontSize: 9,
+      cellPadding: 6,
+      textColor: [31, 41, 55],
+    },
+    headStyles: {
+      fillColor: [79, 70, 229],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+    },
+    columnStyles: {
+      4: { halign: 'right' },
+    },
+    alternateRowStyles: {
+      fillColor: [249, 250, 251],
+    },
+    margin: { left: 40, right: 40, bottom: 40 },
+  })
+
+  doc.save(fileName)
+}
+
 // ─── Función principal ───────────────────────────────────────────────────────
 
 export const exportTransactionsPdf = async (
@@ -189,19 +279,30 @@ export const exportTransactionsPdf = async (
   filters: Filters,
   fileName = `movimientos-al-${new Date().toLocaleDateString('en-CA')}.pdf`,
 ): Promise<void> => {
+  if (IS_WEB) {
+    await exportWebPdf(transactions, categories, filters, fileName)
+    return
+  }
+
   const html = buildHtmlTemplate(transactions, categories, filters)
+
+  // Cargar módulos nativos solo en nativo (no entran al bundle web)
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const Print = require('expo-print') as typeof import('expo-print')
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const Sharing = require('expo-sharing') as typeof import('expo-sharing')
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const FileSystem = require('expo-file-system/legacy') as typeof import('expo-file-system/legacy')
 
   const { uri } = await Print.printToFileAsync({ html, base64: false })
 
   // Renombrar el archivo a un nombre legible
-  // Ya no hace falta usar (FileSystem as any) porque el legacy exporta bien los tipos
   const dir = FileSystem.documentDirectory
-  
+
   if (!dir) throw new Error('No se pudo acceder al directorio de documentos.')
-  
+
   const newUri = `${dir}${fileName}`
-  
-  // Ahora moveAsync funcionará perfectamente sin tirar error ni romper en runtime
+
   await FileSystem.moveAsync({ from: uri, to: newUri })
 
   const canShare = await Sharing.isAvailableAsync()

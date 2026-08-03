@@ -4,8 +4,11 @@
 // El paréntesis indica que '(tabs)' NO forma parte de la URL — es solo organizativo.
 
 import { Tabs } from 'expo-router'
+import { Platform } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors } from '@/constants/colors'
+
+const IS_WEB = Platform.OS === 'web'
 
 export default function TabLayout() {
   return (
@@ -64,6 +67,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="settings"
         options={{
+          href: IS_WEB ? null : undefined,
           title: 'Ajustes',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="settings-outline" size={size} color={color} />

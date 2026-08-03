@@ -3,7 +3,7 @@
 // (el orden lo maneja la query de Firestore, no el cliente).
 
 import React, { useState, useCallback, useMemo } from 'react'
-import { View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native'
+import { View, Text, TouchableOpacity, ActivityIndicator, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -13,6 +13,9 @@ import { TransactionFilters, type Filters } from '@/components/transactions/Tran
 import { deleteTransaction, fetchTransactions } from '@/services/transactions.service'
 import { exportTransactionsPdf } from '@/utils/exportPdf'
 import { isOnline } from '@/utils/network'
+import { showConfirm, showMessage } from '@/utils/dialog'
+
+const IS_WEB = Platform.OS === 'web'
 
 export default function HistoryScreen() {
   const transactions = useFinanceStore((state) => state.transactions)
@@ -49,25 +52,21 @@ export default function HistoryScreen() {
   }, [userId, setTransactions])
 
   const handleDelete = (id: string) => {
-    Alert.alert(
+    showConfirm(
       'Eliminar Movimiento',
       '¿Estás seguro? Esta acción no se puede deshacer.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            const online = await isOnline()
-            if (!online) {
-              Alert.alert('Sin conexión', 'Sin conexión a Internet. Verificá tu conexión.')
-              return
-            }
-            await deleteTransaction(id)
-            Alert.alert('Éxito', 'Movimiento eliminado exitosamente.')
-          },
-        },
-      ]
+      async () => {
+        const online = await isOnline()
+        if (!online) {
+          showMessage('Sin conexión', 'Sin conexión a Internet. Verificá tu conexión.')
+          return
+        }
+        await deleteTransaction(id)
+        showMessage('Éxito', 'Movimiento eliminado exitosamente.')
+      },
+      'Eliminar',
+      'Cancelar',
+      true
     )
   }
 
@@ -118,15 +117,30 @@ export default function HistoryScreen() {
       {/* Botón exportar PDF */}
       <View className="px-5 py-3 bg-white border-t border-gray-200" style={{ paddingBottom: 96 }}>
         <TouchableOpacity
-          onPress={async () => {
-            setIsExporting(true)
-            try {
-              await exportTransactionsPdf(filteredTransactions, allCategories, filters)
-            } catch (e) {
-              Alert.alert('Error', 'No se pudo generar el PDF. Intentá de nuevo.')
-            } finally {
-              setIsExporting(false)
+          onPress={() => {
+            const exportAction = async () => {
+              setIsExporting(true)
+              try {
+                await exportTransactionsPdf(filteredTransactions, allCategories, filters)
+              } catch {
+                showMessage('Error', 'No se pudo generar el PDF. Intentá de nuevo.')
+              } finally {
+                setIsExporting(false)
+              }
             }
+
+            if (IS_WEB) {
+              showConfirm(
+                'Descargar PDF',
+                '¿Querés descargar el PDF de los movimientos filtrados?',
+                exportAction,
+                'Descargar',
+                'Cancelar'
+              )
+              return
+            }
+
+            void exportAction()
           }}
           disabled={isExporting || filteredTransactions.length === 0}
           className={`flex-row items-center justify-center rounded-xl py-3.5 mt-2 gap-2 ${

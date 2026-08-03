@@ -45,6 +45,7 @@ export default function LoginScreen() {
         <Image
           source={require('@/assets/icono.png')}
           className="w-40 h-40 mb-6 rounded-full border-2 border-indigo-100"
+          style={{ width: 160, height: 160 }}
           resizeMode="cover"
           fadeDuration={0}
         />

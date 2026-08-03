@@ -6,7 +6,7 @@
 // una query adicional a Firestore — principio de "single source of truth".
 
 import React from 'react'
-import { View, Text, Alert } from 'react-native'
+import { View, Text } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router, useLocalSearchParams } from 'expo-router'
 import { TransactionForm } from '@/components/transactions/TransactionForm'
@@ -14,6 +14,7 @@ import { useFinanceStore } from '@/store/useFinanceStore'
 import { updateTransaction } from '@/services/transactions.service'
 import type { TransactionFormData } from '@/types'
 import { isOnline } from '@/utils/network'
+import { showMessage } from '@/utils/dialog'
 
 export default function EditTransactionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -29,12 +30,12 @@ export default function EditTransactionScreen() {
 
     const online = await isOnline()
     if (!online) {
-      Alert.alert('Sin conexión', 'Sin conexión a Internet. Verificá tu conexión.')
+      showMessage('Sin conexión', 'Sin conexión a Internet. Verificá tu conexión.')
       return
     }
 
     await updateTransaction(id, data)
-    Alert.alert('Éxito', 'Movimiento editado exitosamente.')
+    showMessage('Éxito', 'Movimiento editado exitosamente.')
     router.back()
   }
 

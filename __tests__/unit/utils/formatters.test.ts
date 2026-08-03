@@ -1,4 +1,10 @@
-import { formatCurrency, formatDate, formatShortDate, getCurrentDateISO } from '../../../utils/formatters'
+import {
+  formatCurrency,
+  formatDate,
+  formatShortDate,
+  formatDateRangeSubtitle,
+  getCurrentDateISO,
+} from '../../../utils/formatters'
 
 describe('formatCurrency', () => {
   it('formats integer amount with two decimals', () => {
@@ -65,5 +71,23 @@ describe('getCurrentDateISO', () => {
   it('returns date in YYYY-MM-DD format', () => {
     const result = getCurrentDateISO()
     expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+})
+
+describe('formatDateRangeSubtitle', () => {
+  it('returns default subtitle when both dates are empty', () => {
+    expect(formatDateRangeSubtitle('', '')).toBe('Resumen General')
+  })
+
+  it('formats full range as dd/MM/yyyy', () => {
+    expect(formatDateRangeSubtitle('2026-08-01', '2026-08-03'))
+      .toBe('Del 01/08/2026 al 03/08/2026')
+  })
+
+  it('supports partial ranges', () => {
+    expect(formatDateRangeSubtitle('2026-08-01', ''))
+      .toBe('Del 01/08/2026 al —')
+    expect(formatDateRangeSubtitle('', '2026-08-03'))
+      .toBe('Del — al 03/08/2026')
   })
 })

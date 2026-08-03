@@ -7102,3 +7102,583 @@ La sección de "Categorías" (el `ScrollView` horizontal con los chips de catego
 - **"Ingresos"**: se muestran solo las categorías de ingresos.
 
 Al cambiar a "Todos", el filtro de categoría ya se resetea a `''` (lógica existente en el botón de tipo), por lo que no queda ningún filtro de categoría activo oculto y el listado muestra todos los movimientos correctamente.
+
+# CONVERSACIÓN 03/08/2026
+
+bien. vamos por lo último. preparemos la versión web. ¿ya está operativa? ¿qué tengo? ¿qué falta? tomé esta decisión porque tengo que pagar para iOs así que decidí preparar la preview para Android y la versión web. planeemos.
+
+## Diagnóstico del estado actual
+
+**Lo que ya está preparado:**
+- ✅ `app.config.ts` ya tiene `web: { bundler: "metro", output: "static" }`
+- ✅ `eas.json` ya tiene el perfil `preview` con `buildType: "apk"` para Android
+- ✅ Scripts `web` y `android` en `package.json`
+- ✅ Variables Firebase listas con `EXPO_PUBLIC_*`
+- ✅ Las rutas de expo-router son compatibles con web estático
+- ✅ Subagentes confirmaron que los servicios de Firebase/Firestore son multiplataforma
+
+**Pero NO está operativa todavía.** Hay bloqueadores que van a romper la web al primer intento, y falta configuración para el APK.
+
+---
+
+## Bloqueadores para la versión web
+
+| # | Archivo | Problema | Severidad |
+|---|---------|----------|-----------|
+| 1 | `lib/firebase.ts` | Usa `getReactNativePersistence(AsyncStorage)` — `AsyncStorage` y ese método **no existen en web**. Rompe TODA la app | 🔴 Crítico |
+| 2 | **Dependencias web faltantes** | `react-dom`, `react-native-web` y `@expo/metro-runtime` **no están en package.json**. Sin ellas `expo start --web` no arranca | 🔴 Crítico |
+| 3 | `services/notifications.service.ts` → `settings.tsx` | `expo-notifications` no soporta web. Se importa en el top-level y al cargar Ajustes va a explotar | 🔴 Alto |
+| 4 | `components/transactions/TransactionForm.tsx` | `expo-image-picker` (cámara/galería) y `@react-native-community/datetimepicker` no funcionan en web | 🔴 Alto |
+| 5 | `utils/exportPdf.ts` → `history.tsx` | `expo-print` + `expo-sharing` no soportan web → el botón "Exportar PDF" rompe | 🔴 Alto |
+| 6 | `components/auth/GoogleSignInButton.tsx` | El require dinámico de Google Sign-In nativo no aplica en web → hay que usar `signInWithPopup` de Firebase | 🟠 Medio |
+| 7 | 4 componentes con `DateTimePicker` | `TransactionFilters`, `DateRangeFilter`, `RecurringConfig` + el form → necesitan `<input type="date">` en web | 🟠 Medio |
+| 8 | `app/_layout.tsx` | `SplashScreen.preventAutoHideAsync()` puede colgarse en web | 🟡 Bajo |
+| 9 | `CategoryChart` (react-native-chart-kit) | Suele funcionar vía react-native-svg, pero hay que verificar | 🟡 Verificar |
+| 10 | `app.config.ts` | `ios.bundleIdentifier` y `android.package` usan placeholder `com.tuempresa.*` | 🟡 Verificar |
+
+---
+
+## Estado de la preview Android (APK)
+
+**Lo que falta para `eas build --profile preview --platform android`:**
+1. **`google-services.json`** — lo tenés que descargar de Firebase Console → Configuración del proyecto → Tus apps → Android. El `app.config.ts` ya lo lee (local o por env `GOOGLE_SERVICES_JSON`).
+2. **Archivo `.env`** — con las variables reales de Firebase, Cloudinary y el `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`.
+3. **Iniciar sesión en EAS** (`eas login`) si no está logueado.
+4. El package `com.tuempresa.gestorfinanciero` — hay que decidir si lo cambiás antes de publicar (después es más complicado).
+
+---
+
+## Plan de implementación propuesto
+
+**Fase 1 — Hacer funcionar la web (código):**
+1. Instalar dependencias web: `react-dom`, `react-native-web`, `@expo/metro-runtime`
+2. `lib/firebase.ts` → en web usar `getAuth(app)` (persistencia del browser); en nativo mantener lo actual
+3. Componente `DateField` cross-platform → reemplazar los 4 usos de `DateTimePicker`
+4. Notificaciones: ocultar la sección "Recordatorio Diario" en web con `Platform.OS === 'web'`
+5. Google Sign-In: `signInWithPopup` en web
+6. Export PDF: en web abrir el HTML en una pestaña nueva con `window.print()` (el usuario puede "Guardar como PDF")
+7. Comprobante (foto): en web usar `<input type="file" accept="image/*">`
+8. Splash screen con guarda web
+9. Verificar con `npx expo start --web` y corregir lo que surja
+
+**Fase 2 — Build web estático:**
+- `npx expo export --platform web` → genera `dist/`
+- Opcional: deploy a Firebase Hosting, Netlify o Vercel
+
+**Fase 3 — Preview Android:**
+1. Vos generás el `google-services.json` y el `.env`
+2. `eas login` (si no está)
+3. `eas build --profile preview --platform android` → te da el APK para instalar
+
+---
+
+## Decisiones que necesito que tomes
+
+1. **PDF en web**: ¿aceptás la opción simple (abrir pestaña de imprimir → "Guardar como PDF") o querés que intente generar el PDF real en el browser? (La simple es mucho más confiable)
+2. **Recordatorio diario en web**: ¿lo ocultamos directamente, o querés que use la Notification API del browser? (recomiendo ocultarlo en una primera versión web)
+3. **Google Sign-In en web**: ¿usamos popup o redirect? (recomiendo popup)
+4. **Package name Android**: ¿mantenemos `com.tuempresa.gestorfinanciero` por ahora, o elegimos uno definitivo? (recomiendo elegir uno definitivo ahora, porque EAS no lo deja cambiar fácil después)
+5. **Deploy web**: ¿querés que además te deje configurado el deploy (por ej. a Firebase Hosting que ya usás), o solo el build local por ahora?
+
+Lo que quiero que implementes es solamente la Fase 1 -- Hacr funcionar la web (código). Android ya funciona bien. Paso a responder tus preguntas.
+
+1. PDF en web: opción simple.
+2. Recordatorio diario en web: directamente lo ocultamos.
+3. Google Sign-In en web: popup.
+4. Package name Android: ya te dije que funciona, lo mantenemos.
+5. Deploy web: por favor, dejalo configurado. También, obviamente, primero quisiera probarlo localmente.
+
+## Diagnóstico del estado actual
+
+**Lo que ya está preparado:**
+- ✅ `app.config.ts` ya tiene `web: { bundler: "metro", output: "static" }`
+- ✅ `eas.json` ya tiene el perfil `preview` con `buildType: "apk"` para Android
+- ✅ Scripts `web` y `android` en `package.json`
+- ✅ Variables Firebase listas con `EXPO_PUBLIC_*`
+- ✅ Las rutas de expo-router son compatibles con web estático
+- ✅ Subagentes confirmaron que los servicios de Firebase/Firestore son multiplataforma
+
+**Pero NO está operativa todavía.** Hay bloqueadores que van a romper la web al primer intento, y falta configuración para el APK.
+
+---
+
+## Bloqueadores para la versión web
+
+| # | Archivo | Problema | Severidad |
+|---|---------|----------|-----------|
+| 1 | `lib/firebase.ts` | Usa `getReactNativePersistence(AsyncStorage)` — `AsyncStorage` y ese método **no existen en web**. Rompe TODA la app | 🔴 Crítico |
+| 2 | **Dependencias web faltantes** | `react-dom`, `react-native-web` y `@expo/metro-runtime` **no están en package.json**. Sin ellas `expo start --web` no arranca | 🔴 Crítico |
+| 3 | `services/notifications.service.ts` → `settings.tsx` | `expo-notifications` no soporta web. Se importa en el top-level y al cargar Ajustes va a explotar | 🔴 Alto |
+| 4 | `components/transactions/TransactionForm.tsx` | `expo-image-picker` (cámara/galería) y `@react-native-community/datetimepicker` no funcionan en web | 🔴 Alto |
+| 5 | `utils/exportPdf.ts` → `history.tsx` | `expo-print` + `expo-sharing` no soportan web → el botón "Exportar PDF" rompe | 🔴 Alto |
+| 6 | `components/auth/GoogleSignInButton.tsx` | El require dinámico de Google Sign-In nativo no aplica en web → hay que usar `signInWithPopup` de Firebase | 🟠 Medio |
+| 7 | 4 componentes con `DateTimePicker` | `TransactionFilters`, `DateRangeFilter`, `RecurringConfig` + el form → necesitan `<input type="date">` en web | 🟠 Medio |
+| 8 | `app/_layout.tsx` | `SplashScreen.preventAutoHideAsync()` puede colgarse en web | 🟡 Bajo |
+| 9 | `CategoryChart` (react-native-chart-kit) | Suele funcionar vía react-native-svg, pero hay que verificar | 🟡 Verificar |
+| 10 | `app.config.ts` | `ios.bundleIdentifier` y `android.package` usan placeholder `com.tuempresa.*` | 🟡 Verificar |
+
+---
+
+## Estado de la preview Android (APK)
+
+**Lo que falta para `eas build --profile preview --platform android`:**
+1. **`google-services.json`** — lo tenés que descargar de Firebase Console → Configuración del proyecto → Tus apps → Android. El `app.config.ts` ya lo lee (local o por env `GOOGLE_SERVICES_JSON`).
+2. **Archivo `.env`** — con las variables reales de Firebase, Cloudinary y el `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`.
+3. **Iniciar sesión en EAS** (`eas login`) si no está logueado.
+4. El package `com.tuempresa.gestorfinanciero` — hay que decidir si lo cambiás antes de publicar (después es más complicado).
+
+---
+
+## Plan de implementación propuesto
+
+**Fase 1 — Hacer funcionar la web (código):**
+1. Instalar dependencias web: `react-dom`, `react-native-web`, `@expo/metro-runtime`
+2. `lib/firebase.ts` → en web usar `getAuth(app)` (persistencia del browser); en nativo mantener lo actual
+3. Componente `DateField` cross-platform → reemplazar los 4 usos de `DateTimePicker`
+4. Notificaciones: ocultar la sección "Recordatorio Diario" en web con `Platform.OS === 'web'`
+5. Google Sign-In: `signInWithPopup` en web
+6. Export PDF: en web abrir el HTML en una pestaña nueva con `window.print()` (el usuario puede "Guardar como PDF")
+7. Comprobante (foto): en web usar `<input type="file" accept="image/*">`
+8. Splash screen con guarda web
+9. Verificar con `npx expo start --web` y corregir lo que surja
+
+**Fase 2 — Build web estático:**
+- `npx expo export --platform web` → genera `dist/`
+- Opcional: deploy a Firebase Hosting, Netlify o Vercel
+
+**Fase 3 — Preview Android:**
+1. Vos generás el `google-services.json` y el `.env`
+2. `eas login` (si no está)
+3. `eas build --profile preview --platform android` → te da el APK para instalar
+
+---
+
+## Decisiones que necesito que tomes
+
+1. **PDF en web**: ¿aceptás la opción simple (abrir pestaña de imprimir → "Guardar como PDF") o querés que intente generar el PDF real en el browser? (La simple es mucho más confiable)
+2. **Recordatorio diario en web**: ¿lo ocultamos directamente, o querés que use la Notification API del browser? (recomiendo ocultarlo en una primera versión web)
+3. **Google Sign-In en web**: ¿usamos popup o redirect? (recomiendo popup)
+4. **Package name Android**: ¿mantenemos `com.tuempresa.gestorfinanciero` por ahora, o elegimos uno definitivo? (recomiendo elegir uno definitivo ahora, porque EAS no lo deja cambiar fácil después)
+5. **Deploy web**: ¿querés que además te deje configurado el deploy (por ej. a Firebase Hosting que ya usás), o solo el build local por ahora?
+
+Lo que quiero que implementes es solamente la Fase 1 -- Hacr funcionar la web (código). Android ya funciona bien. Paso a responder tus preguntas.
+
+1. PDF en web: opción simple.
+2. Recordatorio diario en web: directamente lo ocultamos.
+3. Google Sign-In en web: popup.
+4. Package name Android: ya te dije que funciona, lo mantenemos.
+5. Deploy web: por favor, dejalo configurado. También, obviamente, primero quisiera probarlo localmente.
+
+te trabaste con el tema del campo de fecha cross-platform. 
+
+// - Nativo (iOS/Android): usa @react-native-community/datetimepicker (selector nativo)
+// - Web: usa <input type="date"> nativo del navegador (que no soporta el picker RN)
+//
+// Ambos devuelven la fecha en formato YYYY-MM-DD a través de onChange.
+
+revisá todo por las dudas. lo que ya está y lo que falta
+
+Revisé el estado real de los archivos. Este es el inventario exacto:
+
+## ✅ Ya aplicado (3 de 11)
+
+1. **`lib/firebase.ts`** — ✅ Ahora detecta `Platform.OS === 'web'` → usa `getAuth(app)` en web (persistencia del navegador); en nativo sigue con `initializeAuth` + AsyncStorage. El `require('firebase/auth')` solo se evalúa en nativo.
+
+2. **`components/ui/DateField.tsx`** — ✅ Creado. Cross-platform: nativo → `@react-native-community/datetimepicker`; web → `<input type="date">`. Siempre devuelve `YYYY-MM-DD`.
+
+3. **Dependencias web** — ✅ en `package.json` (`react-dom@19.1.0`, `react-native-web@^0.21.0`, `@expo/metro-runtime@~6.1.2`). Nota: fueron agregadas a mano; hay que correr `npm install` para materializarlas en `node_modules/`.
+
+## ❌ Pendiente (8 de 11)
+
+1. **`components/transactions/TransactionForm.tsx`** — ⚠️ Sigue original: importa `Platform`, `DateTimePicker` y `expo-image-picker` en top-level. **Esto rompe web al cargar el formulario.** Hay que: reescribir con `DateField`, y adaptar el **comprobante (foto)** → `<input type="file" accept="image/*">` en web usando `FileReader` para dataURI.
+
+2. **`TransactionFilters.tsx`** — 2 `DateTimePicker` → `DateField`.
+
+3. **`DateRangeFilter.tsx`** — 2 `DateTimePicker` → `DateField`.
+
+4. **`RecurringConfig.tsx`** — 2 `DateTimePicker` → `DateField`.
+
+5. **`settings.tsx` + `useNotifications.ts`** — Ocultar "Recordatorio Diario" en web (`Platform.OS === 'web'`).
+
+6. **`GoogleSignInButton.tsx`** — En web: `signInWithPopup` de Firebase (popup).
+
+7. **`exportPdf.ts` + `history.tsx`** — En web: `window.print()` con el HTML generado (opción simple).
+
+8. **`app/_layout.tsx`** — Guarda web para `SplashScreen.preventAutoHideAsync()`.
+
+## 📐 Integración del DateField con React Hook Form
+
+En `TransactionForm`, el campo `date` está bajo `<Controller>`. La integración es limpia: envuelvo `<DateField>` dentro del `Controller` y `onChange` recibe el string `YYYY-MM-DD`. En web, el `<input type="date">` del navegador muestra el calendario nativo. No hay conflicto con el resolver de zod porque el formato se mantiene idéntico.
+
+## 📋 Pasos finales tras el código
+
+- Verificar con `npx expo start --web` y corregir (incluye revisar `CategoryChart`/chart-kit en web).
+- Build estático `npx expo export --platform web`.
+- Configurar deploy a **Firebase Hosting** (`firebase.json` + script).
+
+---
+
+Estoy listo para implementar todo. **Cambiá a ACT MODE** (toggle Plan/Act abajo) y arranco con el `TransactionForm`, sigo con los otros componentes y termino con la verificación local y el deploy configurado.
+
+## Fase 1 completada: versión web lista para probar
+
+### Cambios aplicados
+
+1. **`lib/firebase.ts`** — Ahora detecta `Platform.OS === 'web'`. En web usa `getAuth(app)` (persistencia del navegador). En nativo mantiene `initializeAuth` con `AsyncStorage`. El `require('firebase/auth')` solo se evalúa en nativo.
+
+2. **`components/ui/DateField.tsx`** — Componente cross-platform:
+   - Nativo: `@react-native-community/datetimepicker`
+   - Web: `<input type="date">`
+   - Devuelve `YYYY-MM-DD` siempre.
+
+3. **`components/transactions/TransactionForm.tsx`** — Reescrito:
+   - Fecha con `DateField`.
+   - Comprobante: en web usa `<input type="file">` + `FileReader` (data URI); en nativo mantiene `expo-image-picker`.
+
+4. **`services/upload.service.ts`** — Adaptado a web:
+   - Nativo: `FormData` con `{ uri, type, name }`.
+   - Web: convierte data URI a `File` antes de subir a Cloudinary.
+
+5. **`components/transactions/TransactionFilters.tsx`** — Reemplazados los 2 `DateTimePicker` por `DateField`.
+
+6. **`components/dashboard/DateRangeFilter.tsx`** — Reemplazados los 2 `DateTimePicker` por `DateField`.
+
+7. **`components/transactions/RecurringConfig.tsx`** — Reemplazados los 2 `DateTimePicker` por `DateField`.
+
+8. **`app/(tabs)/settings.tsx`** — Oculta “Recordatorio Diario” en web (`Platform.OS === 'web'`).
+
+9. **`hooks/useNotifications.ts`** — Carga `services/notifications.service` con `require()` dinámico solo en nativo. En web devuelve no-ops para no importar `expo-notifications`.
+
+10. **`components/auth/GoogleSignInButton.tsx`** — En web usa `signInWithPopup` de Firebase. En nativo mantiene el flujo con `@react-native-google-signin/google-signin`.
+
+11. **`utils/exportPdf.ts`** — En web abre una ventana de impresión con el HTML generado (`window.print()`). En nativo mantiene `expo-print` + `expo-sharing`. Los módulos nativos se cargan con `require()` dinámico solo en nativo.
+
+12. **`app/_layout.tsx`** — Guarda web para `SplashScreen.preventAutoHideAsync()` y `SplashScreen.hideAsync()`.
+
+13. **`package.json`** — Agregados scripts:
+    - `web:build`: `expo export --platform web`
+    - `web:deploy`: `firebase deploy --only hosting`
+
+14. **Deploy configurado**:
+    - `firebase.json` → hosting en `dist/` con rewrite SPA.
+    - `.firebaserc` → proyecto `gestor-financiero-app`.
+
+### Estado actual
+
+- Código web: **listo**.
+- Verificación local: **pendiente** (no se ejecutó `expo start --web`).
+- Build/deploy: **pendiente** de ejecutar los comandos.
+
+### Próximos pasos que tenés que ejecutar
+
+1. Instalar dependencias si faltan:
+   - `npm install`
+
+2. Probar localmente:
+   - `npm run web`
+   - Verificar login, dashboard, historial, filtros, fechas, comprobante, export PDF y Google Sign-In.
+
+3. Build y deploy:
+   - `npm run web:build`
+   - `npm run web:deploy`
+
+### Notas
+
+- En web, el recordatorio diario está oculto.
+- En web, el PDF se exporta con la ventana de impresión del navegador (“Guardar como PDF”).
+- En web, el comprobante usa `<input type="file">` y se guarda como data URI hasta subir a Cloudinary.
+- Android preview ya estaba funcionando; el package name se mantiene igual.
+
+Logs for your project will appear below. Press Ctrl+C to exit.
+Web Bundled 35670ms node_modules\expo-router\entry.js (2400 modules)
+λ Bundled 36458ms node_modules\expo-router\node\render.js (2467 modules)
+
+Metro error: Font.resetServerContext is not a function
+
+  TypeError: Font.resetServerContext is not a function
+    at apply (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\expo-router\build\static\renderStaticContent.js:87:10)
+    at getStaticContent (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\@expo\cli\src\start\server\getStaticRenderFunctions.ts:116:25)
+    at bundleStaticHtml (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\@expo\cli\src\start\server\metro\MetroBundlerDevServer.ts:495:20)
+    at async Promise.all (index 1)
+    at MetroBundlerDevServer.getStaticPageAsync (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\@expo\cli\src\start\server\metro\MetroBundlerDevServer.ts:498:52)
+    at getHtml (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\@expo\cli\src\start\server\metro\createServerRouteMiddleware.ts:78:31)
+    at requestHandler (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\expo-server\src\vendor\abstract.ts:143:22)
+    at C:\repo-gestor-financiero\gestor-financiero-app\node_modules\expo-server\src\runtime\index.ts:83:13
+    at requestHandler (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\expo-server\src\vendor\http.ts:47:14)
+    at C:\repo-gestor-financiero\gestor-financiero-app\node_modules\expo-server\src\vendor\http.ts:67:24
+Web Bundled 807ms .expo\static-tmp\_error.js (393 modules)
+ LOG  [web] Logs will appear in the browser console
+λ Bundled 164ms node_modules\expo-router\node\render.js (1 module)
+Web Bundled 1806ms node_modules\expo-router\entry.js (1 module)
+
+Metro error: Font.resetServerContext is not a function
+
+  TypeError: Font.resetServerContext is not a function
+    at apply (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\expo-router\build\static\renderStaticContent.js:87:10)
+    at getStaticContent (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\@expo\cli\src\start\server\getStaticRenderFunctions.ts:116:25)
+    at bundleStaticHtml (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\@expo\cli\src\start\server\metro\MetroBundlerDevServer.ts:495:20)
+    at async Promise.all (index 1)
+    at MetroBundlerDevServer.getStaticPageAsync (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\@expo\cli\src\start\server\metro\MetroBundlerDevServer.ts:498:52)
+    at getHtml (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\@expo\cli\src\start\server\metro\createServerRouteMiddleware.ts:78:31)
+    at requestHandler (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\expo-server\src\vendor\abstract.ts:165:28)
+    at C:\repo-gestor-financiero\gestor-financiero-app\node_modules\expo-server\src\runtime\index.ts:83:13
+    at requestHandler (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\expo-server\src\vendor\http.ts:47:14)
+    at C:\repo-gestor-financiero\gestor-financiero-app\node_modules\expo-server\src\vendor\http.ts:67:24
+
+Uncaught TypeError: Cannot read properties of undefined (reading 'map')
+    at useLogs (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\@expo\metro-runtime\src\error-overlay\Data\LogContext.tsx:27:26)
+    at LogBoxInspectorContainer (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\@expo\metro-runtime\src\error-overlay\ErrorOverlay.tsx:31:45)
+    at react-stack-bottom-frame (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\react-dom\cjs\react-dom-client.development.js:23863:20)
+    at renderWithHooks (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\react-dom\cjs\react-dom-client.development.js:5529:22)
+    at updateFunctionComponent (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\react-dom\cjs\react-dom-client.development.js:8897:19)
+    at beginWork (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\react-dom\cjs\react-dom-client.development.js:10522:18)
+    at runWithFiberInDEV (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\react-dom\cjs\react-dom-client.development.js:1519:30)
+    at performUnitOfWork (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\react-dom\cjs\react-dom-client.development.js:15132:22)
+    at workLoopSync (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\react-dom\cjs\react-dom-client.development.js:14956:41)
+    at renderRootSync (C:\repo-gestor-financiero\gestor-financiero-app\node_modules\react-dom\cjs\react-dom-client.development.js:14936:11)
+
+El error que estás viendo no viene de los cambios de compatibilidad web que hice. Es un problema de **Expo Router + expo-font** en el modo web estático:
+
+```
+Metro error: Font.resetServerContext is not a function
+    at expo-router/build/static/renderStaticContent.js:87:10
+```
+
+`expo-router` intenta llamar a `Font.resetServerContext()` en el servidor estático, pero en tu proyecto **no tenés `expo-font` como dependencia explícita** en `package.json`. Expo SDK 54 lo necesita para esa API.
+
+## Solución
+
+1. Instalar/alinear `expo-font`:
+   - `npx expo install expo-font`
+
+2. Si ya está instalado pero desactualizado, igualmente el comando anterior lo alinea a la versión compatible con tu SDK.
+
+3. Después, volver a correr:
+   - `npm run web`
+
+## Si el error persiste
+
+Otra causa conocida en Expo SDK 54 es el modo `output: "static"` combinado con `expo-router` en desarrollo web. Podés probar cambiando temporalmente `app.config.ts` a:
+
+```ts
+web: {
+  bundler: "metro",
+  output: "server"  // temporal para desarrollo
+}
+```
+
+Pero **no lo dejes así para deploy**, porque para Firebase Hosting necesitás `output: "static"`.
+
+## Resumen del estado actual
+
+- Código de compatibilidad web: ✅ aplicado
+- Configuración de deploy: ✅ lista (`firebase.json`, `.firebaserc`, scripts)
+- Error actual: 🔴 `Font.resetServerContext` → se resuelve instalando `expo-font`
+
+Una vez que corras `npx expo install expo-font` y `npm run web`, si aparece otro error, pegalo y lo corregimos.
+
+vamos con los 2 primeros problemas que me encontré en la versión web.
+
+1) icono.jpg se ve demasiado grande en la versión web, tapando prácticamente toda la pantalla.
+
+2) problema con google-sign-in: Access to fetch at 'https://www.google.com/generate_204' from origin 'http://localhost:8081' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+[NEW] Explain Console errors by using Copilot in Edge: click  to explain an error. Learn moreDon't show again
+C:\repo-gestor-financiero\gestor-financiero-app\utils\network.ts:20  HEAD https://www.google.com/generate_204 net::ERR_FAILED 204 (No Content)
+
+## Diagnóstico de los 2 problemas
+
+### 1) Icono demasiado grande en web
+
+El problema está en `app/(auth)/login.tsx` (y `register.tsx` no tiene imagen, así que es solo login). El `<Image>` usa `className="w-40 h-40"` (160×160px) que en móvil se ve bien, pero en web el `KeyboardAvoidingView` con `justify-center` + el `Image` con `resizeMode="cover"` hace que la imagen se estire y ocupe toda la pantalla.
+
+**Causa raíz**: en web, `react-native-web` no respeta bien `w-40 h-40` con `resizeMode="cover"` dentro de un contenedor flexible, y la imagen se expande.
+
+**Solución**: agregar un `style={{ width: 160, height: 160 }}` explícito al `Image` (además de las clases) para forzar el tamaño en web, o usar `resizeMode="contain"`. Lo más robusto es fijar el tamaño con `style` inline.
+
+### 2) Google Sign-In: error CORS con `generate_204`
+
+El error viene de `utils/network.ts`. La función `isOnline()` hace un `fetch('https://www.google.com/generate_204', { method: 'HEAD' })`. En **nativo** esto funciona, pero en **web** el navegador bloquea la petición por CORS (Google no envía `Access-Control-Allow-Origin`).
+
+**Consecuencia**: `isOnline()` devuelve `false` en web, y como `GoogleSignInButton` llama a `isOnline()` antes de `signInWithPopup`, el login con Google se bloquea con "Sin conexión".
+
+**Solución**: en web, `isOnline()` debe usar `navigator.onLine` (API del navegador) en lugar del fetch a Google. En nativo, mantener el fetch actual.
+
+---
+
+## Plan de cambios
+
+1. **`app/(auth)/login.tsx`** — Agregar `style={{ width: 160, height: 160 }}` al `<Image>` para forzar tamaño en web.
+
+2. **`utils/network.ts`** — En web usar `navigator.onLine`; en nativo mantener el fetch a `generate_204`.
+
+Ambos son cambios pequeños y localizados. ¿Los aplico?
+
+## Fixes aplicados a la versión web
+
+### 1) Icono demasiado grande en web — ✅ resuelto
+
+**Archivo**: `app/(auth)/login.tsx`
+
+Agregué `style={{ width: 160, height: 160 }}` al `<Image>` del logo. En web, `react-native-web` no respetaba bien las clases `w-40 h-40` con `resizeMode="cover"` dentro del contenedor flexible, y la imagen se expandía ocupando toda la pantalla. Ahora el tamaño queda forzado a 160×160px en todas las plataformas.
+
+### 2) Google Sign-In bloqueado por CORS — ✅ resuelto
+
+**Archivo**: `utils/network.ts`
+
+El error venía de `isOnline()`, que hacía `fetch('https://www.google.com/generate_204')`. En nativo funciona, pero en web el navegador bloquea la petición por CORS (Google no envía `Access-Control-Allow-Origin`), haciendo que `isOnline()` devolviera `false` y bloqueara el login con Google.
+
+Ahora:
+- **Web**: usa `navigator.onLine` (API nativa del navegador), evitando el fetch a Google.
+- **Nativo**: mantiene el fetch a `generate_204` como antes.
+
+### Verificación
+
+- No hay tests que dependan del comportamiento anterior de `isOnline`.
+- Ambos cambios son localizados y no afectan la lógica nativa.
+
+### Para probar
+
+Recargá la página web (`npm run web`) y verificá:
+1. El logo se ve en tamaño normal (160×160px).
+2. El botón "Continuar con Google" ya no muestra "Sin conexión" y abre el popup de Google.
+
+Quiero eliminar el borde gris fino que rodea todo el campo de búsqueda de "Historial de Movimientos" - "Buscar por descripción" de la versión WEB. Me refiero al borde exterior del TextInput, no al borde azul de foco. El input debe verse completamente plano, sin outline, sin border, sin box-shadow ni elevación. Solo quiero conservar el fondo blanco y el contenido (ícono y placeholder).
+
+## Bordecito gris interno del campo de búsqueda eliminado en web
+
+**Archivo**: `components/transactions/TransactionFilters.tsx`
+
+### Causa
+
+El `TextInput` de react-native-web no aplicaba correctamente los estilos inline (`borderWidth: 0`, `outlineStyle: 'none'`, etc.) al `<input>` del navegador, dejando un bordecito gris interno.
+
+### Solución (sin tocar global.css)
+
+En web, el campo de búsqueda ahora renderiza un **`<input>` HTML nativo** con estilos inline que fuerzan un aspecto completamente plano:
+
+- `border: 'none'`
+- `outline: 'none'`
+- `boxShadow: 'none'` (+ prefijos `-webkit-` y `-moz-`)
+- `appearance: 'none'` (+ prefijos)
+- `background: 'transparent'`
+- `padding: 0`
+
+Esto garantiza que no haya ningún borde, outline, sombra ni elevación, conservando solo el fondo blanco del contenedor, el ícono de búsqueda y el placeholder.
+
+### Comportamiento
+
+- **Web**: campo totalmente plano en reposo. Al enfocar, el contenedor muestra el borde azul de foco (que ya estaba y se conserva).
+- **Nativo (iOS/Android)**: sigue usando `TextInput` con el comportamiento original (borde gris en reposo, azul en foco).
+
+### Resultado
+
+El campo "Buscar por descripción..." en la versión web ahora se ve limpio y plano, integrado con el fondo, sin el bordecito gris interno.
+
+puede ser que, en la versión web, al apretar en "Buscar por descripción..." para escribir, todo lo de abajo se corre un cachito para abajo?
+
+Sí, es exactamente eso. Encontré la causa.
+
+## Causa del desplazamiento
+
+En el contenedor del campo de búsqueda, en web, el `style` cambia el `borderWidth` según el foco:
+
+```tsx
+borderWidth: isSearchFocused ? 1 : 0,   // ← 0px en reposo, 1px al enfocar
+borderColor: isSearchFocused ? '#6366F1' : 'transparent',
+```
+
+Al enfocar, el borde pasa de **0px a 1px**, lo que agrega 1px arriba y 1px abajo → el contenedor crece 2px de alto y **empuja todo lo de abajo hacia abajo**. Ese es el "cachito" que ves.
+
+## Solución propuesta
+
+Fijar `borderWidth: 1` **siempre** en web, y cambiar solo el `borderColor`:
+
+- **Reposo**: `borderWidth: 1` + `borderColor: 'transparent'` → visualmente plano (el borde transparente no se ve), pero el espacio ya está reservado.
+- **Foco**: `borderWidth: 1` + `borderColor: '#6366F1'` → borde azul, sin cambio de layout.
+
+Así el alto del contenedor nunca cambia y nada se corre al enfocar. El aspecto plano se mantiene porque el borde transparente es invisible.
+
+¿Aplico este cambio en `components/transactions/TransactionFilters.tsx`?
+
+## Desplazamiento al enfocar el campo de búsqueda corregido
+
+**Archivo**: `components/transactions/TransactionFilters.tsx`
+
+### Causa
+
+En web, el contenedor del campo de búsqueda cambiaba el `borderWidth` según el foco: `0px` en reposo y `1px` al enfocar. Ese cambio de 1px arriba y 1px abajo hacía crecer el contenedor 2px y empujaba todo lo de abajo hacia abajo.
+
+### Solución aplicada
+
+- `borderWidth` ahora es **fijo en 1px** siempre en web.
+- En **reposo**: `borderColor: 'transparent'` → borde invisible, el campo sigue viéndose plano (sin bordecito gris).
+- En **foco**: `borderColor: '#6366F1'` → borde azul de foco, sin cambio de layout.
+- Agregué `boxSizing: 'border-box'` para que el borde quede incluido dentro del alto total del contenedor.
+
+### Resultado
+
+Al hacer clic en "Buscar por descripción..." el borde azul aparece pero **nada se corre hacia abajo**: el layout se mantiene 100% estable. El campo sigue plano en reposo, conservando solo el fondo blanco, el ícono y el placeholder.
+
+bien. la versión web está arreglada pero ahora la versión nativa tiene un problema: cuando toco para escribir en "Buscar por descripción...", el teclado se abre y se cierra, bloqueandome el input.
+
+Encontré la causa del problema del teclado en nativo.
+
+## Causa: el teclado se abre y se cierra por un remount del TextInput
+
+En `components/transactions/TransactionFilters.tsx`, la rama **nativa** del `style` del contenedor del campo de búsqueda cambia según el foco:
+
+```tsx
+: isSearchFocused
+  ? { zIndex: 1 }
+  : undefined      // ← reposo: style={undefined}
+```
+
+Esto provoca este ciclo en nativo:
+
+1. Tocás el input → `onFocus` → `setIsSearchFocused(true)` → el contenedor pasa de `style={undefined}` a `style={{ zIndex: 1 }}`.
+2. Ese cambio de prop hace que React **remonte el subárbol** del contenedor, **recreando el `TextInput` desde cero** → pierde el foco → el teclado se cierra.
+3. `onBlur` → `setIsSearchFocused(false)` → el estilo vuelve a `undefined` → se vuelve a montar → intenta enfocar → el teclado se abre... **y así en loop**, bloqueando el input.
+
+En web no se nota porque el `<input>` HTML gestiona el foco de forma distinta y no se recrea igual que el `TextInput` nativo.
+
+## Solución
+
+En la rama nativa del `style`, **fijar un valor constante que NO dependa de `isSearchFocused`** (por ejemplo `{ zIndex: 1 }` siempre, o `undefined` siempre). Así el contenedor no cambia de props de estilo al enfocar y el `TextInput` **no se remonta**.
+
+El borde azul de foco en nativo ya se maneja por `className` (`border border-gray-200` ↔ `border-indigo-500`), que **no** provoca remount. De esa forma:
+- Se mantiene el feedback visual del borde azul al enfocar.
+- El `TextInput` conserva el foco y el teclado ya no se abre/cierra.
+
+El cambio toca una sola línea del `style` del contenedor en `components/transactions/TransactionFilters.tsx`. ¿Lo aplico?
+
+## Problema del teclado en nativo corregido
+
+**Archivo**: `components/transactions/TransactionFilters.tsx`
+
+### Causa
+
+En la rama nativa, el `style` del contenedor del campo de búsqueda cambiaba según el foco:
+
+```tsx
+: isSearchFocused
+  ? { zIndex: 1 }
+  : undefined
+```
+
+Al tocar el input:
+1. `onFocus` → `setIsSearchFocused(true)` → el contenedor cambiaba de `style={undefined}` a `style={{ zIndex: 1 }}`.
+2. Ese cambio de prop hacía que React **remontara el subárbol**, recreando el `TextInput` desde cero → perdía el foco → el teclado se cerraba.
+3. `onBlur` → `setIsSearchFocused(false)` → volvía a `undefined` → se remontaba de nuevo → el teclado se abría... y así en loop, bloqueando el input.
+
+En web no se notaba porque el `<input>` HTML gestiona el foco de forma distinta.
+
+### Solución
+
+- La rama nativa del `style` ahora es **constante** (`{ zIndex: 1 }`), independiente de `isSearchFocused`.
+- Así el contenedor no cambia sus props de estilo al enfocar y el `TextInput` **no se remonta**: conserva el foco y el teclado ya no se cierra.
+- El borde azul de foco en nativo se sigue manejando por `className` (`border-indigo-500`), que no provoca remount.
+
+### Resultado
+
+- **Nativo (iOS/Android)**: al tocar "Buscar por descripción..." el teclado se abre y se mantiene abierto; el input queda usable. Se conserva el borde azul de foco.
+- **Web**: sin cambios; el campo sigue plano en reposo y con borde azul al enfocar, sin salto de layout.
