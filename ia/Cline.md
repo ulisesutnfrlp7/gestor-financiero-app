@@ -7075,3 +7075,30 @@ La causa raíz ya está resuelta en los archivos, pero hace falta que surta efec
 El orden típico sería: cerrar el proceso actual de Metro → `npx expo run:android` (levanta un Metro nuevo) → probar el login con Google.
 
 Para que ejecute estos pasos de reconstrucción y verificación, necesito que **cambiés a modo Act**.
+
+hay un tema en Historial: cuando está seleccionada la opción "Todos", es decir, ni Gastos ni Ingresos, se tendría que ocultar o desactivar la barra de filtros por categoría, ya que no tiene sentido si estamos mostrando todos los movimientos porque Gastos tiene sus categorías e Ingresos tiene sus categorías
+
+He revisado el código y encontré la causa. En `components/transactions/TransactionFilters.tsx`, la sección de "Categorías" (el `ScrollView` horizontal) se renderiza siempre, sin importar el tipo seleccionado. Cuando se elige "Todos", además, se muestran las categorías de gastos (por la lógica de la línea 34), lo que resulta confuso.
+
+**Plan:**
+
+En `components/transactions/TransactionFilters.tsx`, ocultar la sección de "Categorías" cuando `filters.type === 'all'`, envolviendo el bloque del `ScrollView` de categorías (líneas 133-175) con la condición `filters.type !== 'all'`.
+
+**Consideraciones:**
+- Al seleccionar "Todos", el filtro de categoría ya se resetea a `''` (línea 88), por lo que no quedará un filtro de categoría activo oculto.
+- El botón "Limpiar Filtros" y el filtrado en `history.tsx` no se ven afectados, ya que la categoría queda vacía al cambiar a "Todos".
+
+Es un cambio mínimo y localizado en un solo archivo. ¿Estás de acuerdo con este enfoque? Si es así, cambiá a modo Act para que lo implemente.
+
+Se ocultó la barra de filtros por categoría en el Historial cuando está seleccionada la opción "Todos".
+
+**Cambio realizado en `components/transactions/TransactionFilters.tsx`:**
+
+La sección de "Categorías" (el `ScrollView` horizontal con los chips de categorías) ahora solo se renderiza cuando `filters.type !== 'all'`, es decir, únicamente cuando se selecciona "Gastos" o "Ingresos".
+
+**Comportamiento resultante:**
+- **"Todos"**: se oculta la barra de categorías, ya que no tiene sentido mezclar categorías de gastos e ingresos.
+- **"Gastos"**: se muestran solo las categorías de gastos.
+- **"Ingresos"**: se muestran solo las categorías de ingresos.
+
+Al cambiar a "Todos", el filtro de categoría ya se resetea a `''` (lógica existente en el botón de tipo), por lo que no queda ningún filtro de categoría activo oculto y el listado muestra todos los movimientos correctamente.

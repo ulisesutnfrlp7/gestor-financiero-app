@@ -130,49 +130,51 @@ export const TransactionFilters: React.FC<TransactionFiltersProps> = ({
         </TouchableOpacity>
       </View>
 
-      {/* Categorías */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-6 mt-3">
-        <View className="flex-row gap-2">
-          <TouchableOpacity
-            onPress={() => setFilter({ category: '' })}
-            className={`px-3 py-1.5 rounded-full border ${
-              !filters.category
-                ? 'bg-indigo-600 border-indigo-600'
-                : 'bg-white border-gray-200'
-            }`}
-          >
-            <Text
-              className={`text-xs font-medium ${
-                !filters.category ? 'text-white' : 'text-gray-600'
+      {/* Categorías (solo cuando se filtra por un tipo específico) */}
+      {filters.type !== 'all' && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-6 mt-3">
+          <View className="flex-row gap-2">
+            <TouchableOpacity
+              onPress={() => setFilter({ category: '' })}
+              className={`px-3 py-1.5 rounded-full border ${
+                !filters.category
+                  ? 'bg-indigo-600 border-indigo-600'
+                  : 'bg-white border-gray-200'
               }`}
             >
-              Todas
-            </Text>
-          </TouchableOpacity>
-          {categories.map((cat) => {
-            const isSelected = filters.category === cat.id
-            return (
-              <TouchableOpacity
-                key={cat.id}
-                onPress={() => setFilter({ category: cat.id })}
-                className={`px-3 py-1.5 rounded-full border ${
-                  isSelected
-                    ? 'bg-indigo-600 border-indigo-600'
-                    : 'bg-white border-gray-200'
+              <Text
+                className={`text-xs font-medium ${
+                  !filters.category ? 'text-white' : 'text-gray-600'
                 }`}
               >
-                <Text
-                  className={`text-xs font-medium ${
-                    isSelected ? 'text-white' : 'text-gray-600'
+                Todas
+              </Text>
+            </TouchableOpacity>
+            {categories.map((cat) => {
+              const isSelected = filters.category === cat.id
+              return (
+                <TouchableOpacity
+                  key={cat.id}
+                  onPress={() => setFilter({ category: cat.id })}
+                  className={`px-3 py-1.5 rounded-full border ${
+                    isSelected
+                      ? 'bg-indigo-600 border-indigo-600'
+                      : 'bg-white border-gray-200'
                   }`}
                 >
-                  {cat.label}
-                </Text>
-              </TouchableOpacity>
-            )
-          })}
-        </View>
-      </ScrollView>
+                  <Text
+                    className={`text-xs font-medium ${
+                      isSelected ? 'text-white' : 'text-gray-600'
+                    }`}
+                  >
+                    {cat.label}
+                  </Text>
+                </TouchableOpacity>
+              )
+            })}
+          </View>
+        </ScrollView>
+      )}
 
       {/* Botón limpiar filtros */}
       {hasActiveFilters && (
