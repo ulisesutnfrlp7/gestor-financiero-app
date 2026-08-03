@@ -12,9 +12,12 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       <View className="px-5 pt-4">
-        <Text className="text-2xl font-bold text-gray-900 mb-6">
-          Configuración
-        </Text>
+        
+        {/* Encabezado */}
+        <View className="px-0 py-2 mb-3">
+          <Text className="text-2xl font-bold text-gray-900">Configuración</Text>
+          <Text className="text-gray-500 text-sm mt-1">Programá tu recordatorio</Text>
+        </View>
 
         {/* Recordatorio diario */}
         <View className="bg-white rounded-xl p-4 flex-row items-center justify-between shadow-sm border border-gray-100">

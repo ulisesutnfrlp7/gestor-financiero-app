@@ -91,7 +91,7 @@ export default function HistoryScreen() {
       {/* Encabezado */}
       <View className="px-5 pt-6 pb-2">
         <Text className="text-2xl font-bold text-gray-900">Historial de Movimientos</Text>
-        <Text className="text-gray-500 text-sm mt-1">Podés revisar, crear, editar, ordenar y eliminar a gusto.</Text>
+        <Text className="text-gray-500 text-sm mt-1">Podés revisar, crear, editar, ordenar y eliminar a gusto</Text>
       </View>
 
       {/* Banner de error */}

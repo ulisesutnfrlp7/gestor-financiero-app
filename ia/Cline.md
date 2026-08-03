@@ -6940,3 +6940,138 @@ npm test
 ```
 
 Resultado esperado: **11 suites, 0 fallas, 133 tests pasando**.
+
+# CONVERSACIÓN 02/08/2026
+
+08-02 20:19:46.607  1136  3194 E BufferQueueDebug: [ActivityRecord{9ceea4b u0 com.tuempresa.gestorfinanciero/com.google.android.gms.auth.api.signin.internal.SignInHubActivity#116706](this:0xb4000070d3007768,id:-1,api:0,p:-1,c:-1) id info cannot be read from 'ActivityRecord{9ceea4b u0 com.tuempresa.gestorfinanciero/com.google.android.gms.auth.api.signin.internal.SignInHubActivity#116706'
+08-02 20:19:46.700  1136  1414 E BufferQueueDebug: [d4f840 com.tuempresa.gestorfinanciero/com.google.android.gms.auth.api.signin.internal.SignInHubActivity#116708](this:0xb4000070d2fe8238,id:-1,api:0,p:-1,c:-1) id info cannot be read from 'd4f840 com.tuempresa.gestorfinanciero/com.google.android.gms.auth.api.signin.internal.SignInHubActivity#116708'
+08-02 20:19:46.715  1136  3194 E BufferQueueDebug: [com.tuempresa.gestorfinanciero/com.google.android.gms.auth.api.signin.internal.SignInHubActivity#116709](this:0xb4000070d2fb7ba8,id:-1,api:0,p:-1,c:-1) id info cannot be read from 'com.tuempresa.gestorfinanciero/com.google.android.gms.auth.api.signin.internal.SignInHubActivity#116709'
+08-02 20:19:47.413  1136  3194 E BufferQueueDebug: [65fef1a ActivityRecordInputSink com.tuempresa.gestorfinanciero/com.google.android.gms.auth.api.signin.internal.SignInHubActivity#116719](this:0xb4000070d2ff6608,id:-1,api:0,p:-1,c:-1) id info cannot be read from '65fef1a ActivityRecordInputSink com.tuempresa.gestorfinanciero/com.google.android.gms.auth.api.signin.internal.SignInHubActivity#116719'
+08-02 20:19:50.173  1136  1414 E BufferQueueDebug: [Transition Root: ActivityRecord{9ceea4b u0 com.tuempresa.gestorfinanciero/com.google.android.gms.auth.api.signin.internal.SignInHubActivity t3892 f}}#116770](this:0xb4000070d2f5f738,id:-1,api:0,p:-1,c:-1) id info cannot be read from 'Transition Root: ActivityRecord{9ceea4b u0 com.tuempresa.gestorfinanciero/com.google.android.gms.auth.api.signin.internal.SignInHubActivity t3892 f}}#116770'
+08-02 20:19:50.336  1136  3519 E BufferQueueDebug: [faf4f2a com.tuempresa.gestorfinanciero/com.tuempresa.gestorfinanciero.MainActivity#116773](this:0xb4000070d2fc5f78,id:-1,api:0,p:-1,c:-1) id info cannot be read from 'faf4f2a com.tuempresa.gestorfinanciero/com.tuempresa.gestorfinanciero.MainActivity#116773'
+08-02 20:19:50.358  1136  1414 E BufferQueueDebug: [com.tuempresa.gestorfinanciero/com.tuempresa.gestorfinanciero.MainActivity#116776](this:0xb4000070d3029a28,id:-1,api:0,p:-1,c:-1) id info cannot be read from 'com.tuempresa.gestorfinanciero/com.tuempresa.gestorfinanciero.MainActivity#116776'
+08-02 20:19:50.386  1136  1414 E BufferQueueDebug: [Surface(name=faf4f2a com.tuempresa.gestorfinanciero/com.tuempresa.gestorfinanciero.MainActivity)/@0xbd1d6da - animation-leash of window_animation#116777](this:0xb4000070d2ff9398,id:-1,api:0,p:-1,c:-1) id info cannot be read from 'Surface(name=faf4f2a com.tuempresa.gestorfinanciero/com.tuempresa.gestorfinanciero.MainActivity)/@0xbd1d6da - animation-leash of window_animation#116777'
+08-02 20:19:52.331  1136  1415 E BufferQueueDebug: [Surface(name=faf4f2a com.tuempresa.gestorfinanciero/com.tuempresa.gestorfinanciero.MainActivity)/@0xbd1d6da - animation-leash of window_animation#116780](this:0xb4000070d2fc31e8,id:-1,api:0,p:-1,c:-1) id info cannot be read from 'Surface(name=faf4f2a com.tuempresa.gestorfinanciero/com.tuempresa.gestorfinanciero.MainActivity)/@0xbd1d6da - animation-leash of window_animation#116780'
+
+BUILD SUCCESSFUL in 13m 39s
+507 actionable tasks: 219 executed, 225 from cache, 63 up-to-date
+Starting Metro Bundler
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █▄▄████▀▄ ██▄█▄  █▄██▀█ ▄▄▄▄▄ █
+█ █   █ █ ▀█ ▄ ▄  ██▄▄█▄    ▄██ █   █ █
+█ █▄▄▄█ █▄ ▄▄▀ █▄█ ▀ ▄ ██ ▀ ▄ █ █▄▄▄█ █
+█▄▄▄▄▄▄▄█▄▀▄▀▄█ █ ▀▄▀▄█ ▀ █ █▄█▄▄▄▄▄▄▄█
+█ ▄ ▄██▄█▄█████▀█▄▄█▄▀▄ ▀██▄█▀▄█▀▄▄▄█▄█
+█▄▀ ▄▀▄▄█ █▄▀▀▀▄█▄▄▀█▄▄▄▄▄▀▀█▀▀█   ▀▀▀█
+█▄▄█▄ ▄▄█▄ ▀ █ █ ▄▄ ▀ █ ▄ ▄▄▀ ▄ ▀ █▄  █
+█ ██ ▀ ▄▄▀ ██ ▄█▀███▄ ▀▀███▄▀▀███▄▄█ ██
+███▄█ █▄▄▄█▀▄▀  ▀ █▀█▄▄▄▀▀ █▀██▀██  ▄ █
+█▄██▄ █▄▀ ▄█▄ ██▄▄ ▄█ █████▄  ▄▀▀▄ █▀▄█
+█ ▄▀ ██▄▀▄█▀▄  ███ ▀▄▀▄█▀█▀▄▄▄██ ▄█▀▀██
+█ ▄▄ ▀▄▄ ██ ▄▄▄█▀██▄███ ▄ ▀█▀▄▀▄ ▄  ███
+█▄ ▄ ▄█▄▀▄  ▀ █ ▀█  ▀ ▀▀▄▄  ▀█  ▀ █▄█▀█
+█▀▄ ▀█▄▄▀ ▀▀ █▄▀▀▄██▄ ▀▀███ █▄▀▀  ▀█ ▀█
+███▄█▄█▄█▀█▀█▄█   █▀█▄     ▀  ▄▄▄ ▀▄█▀█
+█ ▄▄▄▄▄ ██▄ ▀█   ▀ ██▀▄██ █▀█ █▄█ ▀█▄ █
+█ █   █ █▀ ▀██▄▄██ █   ▀ █▀▄▀▄  ▄ ██▀ █
+█ █▄▄▄█ █ ▄ ▀▀▀ ▀█▄█▀ █ ▄ ▀▀▀██▄▄▄▀ ███
+█▄▄▄▄▄▄▄█▄█▄▄█████▄▄█▄█▄█▄▄▄███▄█▄▄▄▄▄█
+
+› Metro waiting on exp+gestor-financiero-app://expo-development-client/?url=http%3A%2F%2F192.168.68.115%3A8081
+› Scan the QR code above to open the project in a development build. Learn more: https://expo.fyi/start
+
+› Using development build
+› Press s │ switch to Expo Go
+
+› Press a │ open Android
+› Press w │ open web
+
+› Press j │ open debugger
+› Press r │ reload app
+› Press m │ toggle menu
+› shift+m │ more tools
+› Press o │ open project code in your editor
+
+› Press ? │ show all commands
+
+› Installing C:\repo-gestor-financiero\gestor-financiero-app\android\app\build\outputs\apk\debug\app-debug.apk
+› Opening exp+gestor-financiero-app://expo-development-client/?url=http%3A%2F%2F192.168.68.115%3A8081 on moto_g13
+
+› Logs for your project will appear below. Press Ctrl+C to exit.
+Android Bundled 8118ms node_modules\expo-router\entry.js (2805 modules)
+
+
+ya estoy en mi development build y, al intentar entrar con cuenta de google, salta:
+
+Erro: DEVELOPER_ERROR: Follow troubleshooting instructions at https://react-native-google-signin.github.io/docs/troubleshooting
+
+Encontré la causa del error `DEVELOPER_ERROR`. Hay una **discrepancia en el nombre de la variable de entorno** que hace que el `webClientId` se pase vacío a Google Sign-In.
+
+## Diagnóstico
+
+### El problema principal: variable de entorno incorrecta
+
+En `components/auth/GoogleSignInButton.tsx` (línea 47):
+```ts
+GoogleSignin.configure({
+  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '',
+})
+```
+
+Pero en tu archivo `.env` la variable se llama **`EXPO_PUBLIC_GOOGLE_CLIENT_ID`** (sin `WEB`):
+```
+EXPO_PUBLIC_GOOGLE_CLIENT_ID=33659497492-flhj4dk9ab3g6u2i50i3m8i1osln2r1b.apps.googleusercontent.com
+```
+
+Como `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` no existe, se pasa `''` como `webClientId`. Sin un `webClientId` válido, Google Sign-In no puede generar el `idToken` correctamente y devuelve `DEVELOPER_ERROR`.
+
+### El valor correcto del webClientId
+
+En tu `google-services.json`, el `oauth_client` con `client_type: 3` (Web Client ID) es:
+```
+33659497492-flhj4dk9ab3g6u2i50i3m8i1osln2r1b.apps.googleusercontent.com
+```
+Este valor **coincide** con el que ya tienes en `EXPO_PUBLIC_GOOGLE_CLIENT_ID`. Solo falta que el código lo lea con el nombre correcto.
+
+## Plan de solución
+
+1. **Corregir el nombre de la variable en `.env`**: Renombrar `EXPO_PUBLIC_GOOGLE_CLIENT_ID` a `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` para que coincida con lo que espera el código.
+
+2. **Verificar el SHA-1 del keystore** (posible causa secundaria): El `certificate_hash` en `google-services.json` es `ffb0939f7934fba7585fc678ba68f6ee109e1f29`. Este debe coincidir con el SHA-1 del keystore de debug que firma tu APK. Si no coincide, también daría `DEVELOPER_ERROR`. Podemos verificarlo con:
+   ```
+   keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android
+   ```
+   y comparar el SHA-1 resultante con el del archivo.
+
+3. **Reconstruir el development build** (`npx expo run:android`) para que tome el nuevo valor de la variable de entorno.
+
+## Pregunta
+
+¿Querés que proceda con este plan? Si sí, **cambiá a modo Act** para que pueda hacer los cambios. También necesitaré que ejecutes el comando `keytool` para verificar el SHA-1, o que me confirmes si el `google-services.json` fue descargado recientemente de Firebase Console (en cuyo caso el hash ya debería ser correcto).
+
+Verifiqué ambos archivos editados y están correctos.
+
+## ✅ Configuración correcta
+
+**1. `.env`** — La variable ahora se llama `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` y coincide con lo que espera `GoogleSignInButton.tsx`:
+```
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=33659497492-flhj4dk9ab3g6u2i50i3m8i1osln2r1b.apps.googleusercontent.com
+```
+
+**2. `google-services.json`** — Ahora tiene los dos SHA-1 registrados como `client_type: 1` (Android):
+- `ffb0939f...` → Expo Preview
+- `5e8f1606...` → Development Build
+
+Y el `client_type: 3` (Web Client ID) es el mismo valor `33659497492-flhj...` que está en el `.env`. Esto elimina la causa raíz del `DEVELOPER_ERROR`.
+
+## ⚠️ Pasos finales pendientes (requiere Act Mode)
+
+La causa raíz ya está resuelta en los archivos, pero hace falta que surta efecto en el build porque el cambio tocó dos capas:
+
+1. **Reconstruir el native build** con `npx expo run:android` — Reescribe el proyecto Android con el `google-services.json` actualizado (los 2 SHA) y re-aplica los config plugins.
+
+2. **Reiniciar Metro** — Las variables `EXPO_PUBLIC_*` se inyectan al bundle JS al arrancar Metro y quedan cacheadas. Como cambió el nombre de la variable, Metro debe reiniciarse para tomar `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`. El Metro que está corriendo ahora mismo todavía usa el valor viejo (vacío).
+
+El orden típico sería: cerrar el proceso actual de Metro → `npx expo run:android` (levanta un Metro nuevo) → probar el login con Google.
+
+Para que ejecute estos pasos de reconstrucción y verificación, necesito que **cambiés a modo Act**.

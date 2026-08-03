@@ -136,7 +136,7 @@ export default function RecurringScreen() {
     <SafeAreaView className="flex-1 bg-gray-50">
       <View className="px-5 pt-6 pb-4">
         <Text className="text-2xl font-bold text-gray-900">Movimientos Recurrentes</Text>
-        <Text className="text-gray-500 text-sm mt-1">Administrá tus movimientos programados.</Text>
+        <Text className="text-gray-500 text-sm mt-1">Administrá tus movimientos programados</Text>
       </View>
 
       {error && (

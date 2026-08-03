@@ -211,7 +211,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     Alert.alert('Comprobante', 'Seleccioná una opción', [
       { text: '📷 Cámara', onPress: pickReceiptFromCamera },
       { text: '🖼️ Galería', onPress: pickReceiptFromGallery },
-      { text: '  Cancelar', style: 'cancel' },
+      { text: '    Cancelar', style: 'cancel' },
     ])
   }
 
