@@ -1,4 +1,3 @@
-import React from 'react'
 import { renderHook, act, waitFor } from '@testing-library/react-native'
 import { useTransactions } from '../../../hooks/useTransactions'
 import { useFinanceStore } from '../../../store/useFinanceStore'
