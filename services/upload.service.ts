@@ -36,7 +36,11 @@ export const uploadReceipt = async (uri: string): Promise<string> => {
   const uploadPreset = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET
 
   if (!cloudName || !uploadPreset) {
-    throw new Error('Cloudinary no está configurado. Verificá las variables de entorno.')
+    throw new Error(
+      'Cloudinary no está configurado en esta build. ' +
+      'Verificá que EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME y EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET ' +
+      'estén definidas en tu build de EAS (eas.json o dashboard).'
+    )
   }
 
   const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`

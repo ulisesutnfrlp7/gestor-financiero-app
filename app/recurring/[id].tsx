@@ -28,9 +28,14 @@ export default function EditRecurringScreen() {
       return
     }
 
-    await updateRecurringTemplate(id, data.recurring)
-    Alert.alert('Éxito', 'Plantilla recurrente actualizada exitosamente.')
-    router.back()
+    try {
+      await updateRecurringTemplate(id, data.recurring)
+      Alert.alert('Éxito', 'Plantilla recurrente actualizada exitosamente.')
+      router.back()
+    } catch (err: any) {
+      const msg = err?.message || 'Ocurrió un error al actualizar la plantilla.'
+      Alert.alert('Error', msg)
+    }
   }
 
   if (!template) return null

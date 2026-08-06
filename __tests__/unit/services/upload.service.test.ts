@@ -19,7 +19,7 @@ describe('upload.service', () => {
     delete process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET
 
     await expect(uploadReceipt('file:///test.jpg')).rejects.toThrow(
-      'Cloudinary no está configurado'
+      'Cloudinary no está configurado en esta build'
     )
   })
 

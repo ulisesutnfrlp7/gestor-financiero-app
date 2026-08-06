@@ -34,9 +34,14 @@ export default function EditTransactionScreen() {
       return
     }
 
-    await updateTransaction(id, data)
-    showMessage('Éxito', 'Movimiento editado exitosamente.')
-    router.back()
+    try {
+      await updateTransaction(id, data)
+      showMessage('Éxito', 'Movimiento editado exitosamente.')
+      router.back()
+    } catch (err: any) {
+      const msg = err?.message || 'Ocurrió un error al guardar el movimiento.'
+      showMessage('Error', msg)
+    }
   }
 
   // El movimiento podría no encontrarse si el store aún está cargando

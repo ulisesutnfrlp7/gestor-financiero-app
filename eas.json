@@ -14,7 +14,9 @@
         "buildType": "apk"
       },
       "env": {
-        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
+        "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "whv0faje",
+        "EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET": "gestor_financiero"
       }
     },
     "production": {

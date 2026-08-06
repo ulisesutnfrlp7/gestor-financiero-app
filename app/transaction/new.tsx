@@ -32,16 +32,21 @@ export default function NewTransactionScreen() {
       return
     }
 
-    if (data.recurring) {
-      await createRecurringTemplate(userId, data.recurring)
-      showMessage('Éxito', 'Plantilla recurrente creada exitosamente.')
-      router.back()
-      return
-    }
+    try {
+      if (data.recurring) {
+        await createRecurringTemplate(userId, data.recurring)
+        showMessage('Éxito', 'Plantilla recurrente creada exitosamente.')
+        router.back()
+        return
+      }
 
-    await createTransaction(userId, data)
-    showMessage('Éxito', 'Movimiento registrado exitosamente.')
-    router.back()
+      await createTransaction(userId, data)
+      showMessage('Éxito', 'Movimiento registrado exitosamente.')
+      router.back()
+    } catch (err: any) {
+      const msg = err?.message || 'Ocurrió un error al guardar el movimiento.'
+      showMessage('Error', msg)
+    }
   }
 
   return (
