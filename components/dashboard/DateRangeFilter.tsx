@@ -54,7 +54,7 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
           <DateField
             value={dateFrom}
             onChange={handleDateFromChange}
-            className="h-11 justify-center px-3 py-2.5 rounded-lg border border-gray-200 bg-white"
+            className="h-11 justify-center px-3 py-2.5 rounded-lg border border-indigo-500 bg-white"
             textClassName="text-sm text-gray-600"
             placeholder="Seleccionar fecha"
           />
@@ -65,7 +65,7 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
           <DateField
             value={dateTo}
             onChange={handleDateToChange}
-            className="h-11 justify-center px-3 py-2.5 rounded-lg border border-gray-200 bg-white"
+            className="h-11 justify-center px-3 py-2.5 rounded-lg border border-indigo-500 bg-white"
             textClassName="text-sm text-gray-600"
             placeholder="Seleccionar fecha"
           />

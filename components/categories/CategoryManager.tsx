@@ -192,7 +192,7 @@ export const CategoryManager = () => {
                   if (editError) setEditError('')
                 }}
                 className={`flex-1 border rounded-lg px-3 py-2 text-sm text-gray-900 ${
-                  editError ? 'border-red-400' : 'border-gray-200'
+                  editError ? 'border-red-400' : 'border-indigo-500'
                 }`}
                 autoFocus
                 maxLength={30}
@@ -302,7 +302,7 @@ export const CategoryManager = () => {
             if (newError) setNewError('')
           }}
           className={`w-full border rounded-lg px-4 py-3 text-sm text-gray-900 mb-3 ${
-            newError ? 'border-red-400' : 'border-gray-200'
+            newError ? 'border-red-400' : 'border-indigo-500'
           }`}
           placeholderTextColor="#9CA3AF"
           maxLength={30}

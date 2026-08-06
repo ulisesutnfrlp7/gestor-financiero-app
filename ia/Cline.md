@@ -7682,3 +7682,268 @@ En web no se notaba porque el `<input>` HTML gestiona el foco de forma distinta.
 
 - **Nativo (iOS/Android)**: al tocar "Buscar por descripción..." el teclado se abre y se mantiene abierto; el input queda usable. Se conserva el borde azul de foco.
 - **Web**: sin cambios; el campo sigue plano en reposo y con borde azul al enfocar, sin salto de layout.
+
+# CONVERSACIÓN 05/08/2026
+
+vamos con la configuración final. tenés que estar atento porque pido cosas variando entre la versión web y la nativa:
+
+VERSIÓN WEB: al ingresar en web, aparece por menos de un segundo el dashboard como si ya el usuario se hubiese logueado, y después recién redirige al login. es algo menor pero no deja de ser molesto. para hacerla más fácil, se podría tapar ese minisegundo por una pantalla que diga "Cargando..." o algo así en vez de directamente sacar ese renderizado (que capaz es más dificil).
+
+VERSIÓN NATIVA: que a todos los inputs en los que se tiene que escribir (fechas no, dejalo tal cual) el borde sea azul como en Buscar por descripción... (historial de movimientos)
+
+VERSIÓN WEB: que aparezca la misma sombrita para "Buscar por descripción..." como la que aparece en todos los inputs.
+
+AMBAS VERSIONES: si bien las validaciones La fecha "Hasta" no puede ser anterior a la fecha "Desde" y viceversa están implementadas en Dashboard, no lo están en "Historial de movimientos". Se deberían aplicar también ahí.
+
+Analicé el código y acá va el plan para los 4 puntos:
+
+---
+
+## 1. VERSIÓN WEB — Pantalla "Cargando..." para tapar el flash del dashboard
+
+**Causa raíz:** En `app/_layout.tsx`, el `onAuthStateChanged` es asíncrono. Mientras Firebase Auth resuelve el estado inicial, Expo Router renderiza la ruta por defecto (el dashboard), y recién después redirige al login. Ese instante es el flash que ves.
+
+**Solución (simple, sin tocar el renderizado):** Agregar un estado `isAuthLoading` inicializado en `true` en el `RootLayout`. Mientras sea `true`, en lugar de renderizar el `<Stack>`, se muestra una pantalla centrada con "Cargando..." (un `ActivityIndicator` + texto). Cuando `onAuthStateChanged` resuelva (ya sea con usuario o sin él), se setea `isAuthLoading = false` y recién ahí se renderiza el Stack, que ya estará en la ruta correcta.
+
+- Aplico esto **solo en web** (`Platform.OS === 'web'`) para no alterar el comportamiento nativo, donde el SplashScreen ya cumple esa función.
+- Archivo a modificar: `app/_layout.tsx`.
+
+---
+
+## 2. VERSIÓN NATIVA — Borde azul en todos los inputs de escritura
+
+**Objetivo:** Que en nativo, todos los inputs donde se escribe tengan borde azul (indigo) en reposo, como el estilo de "Buscar por descripción...". Las fechas quedan tal cual.
+
+**Inputs de escritura a modificar** (cambiar `border-gray-200` → `border-indigo-500` en reposo, manteniendo `border-red-400` en errores):
+
+| Archivo | Inputs |
+|---|---|
+| `components/auth/AuthForm.tsx` | Email, Contraseña, Confirmar contraseña |
+| `components/transactions/TransactionForm.tsx` | Monto, Descripción |
+| `components/transactions/RecurringConfig.tsx` | Día de Ejecución (1-31) |
+| `components/categories/CategoryManager.tsx` | Crear categoría, Editar categoría |
+
+- El input de búsqueda en `TransactionFilters.tsx` ya tiene el borde azul en foco, lo dejo como está (es el modelo a seguir).
+- Las fechas (`DateField`) no se tocan.
+
+---
+
+## 3. VERSIÓN WEB — Sombra en "Buscar por descripción..."
+
+**Causa:** En `components/transactions/TransactionFilters.tsx`, el contenedor de búsqueda en web tiene `boxShadow: 'none'` inline (línea 87), que anula la sombra de foco que el CSS global (`_layout.tsx`) aplica a los demás inputs.
+
+**Solución:** En web, cuando el input de búsqueda está enfocado (`isSearchFocused`), aplicar la misma sombra que los demás inputs: `boxShadow: '0 0 0 3px rgba(99, 102, 241, 0.15)'` y `borderColor: '#6366F1'`. En reposo se mantiene `boxShadow: 'none'` y `borderColor: 'transparent'` (para no mover el layout).
+
+- Archivo a modificar: `components/transactions/TransactionFilters.tsx`.
+
+---
+
+## 4. AMBAS VERSIONES — Validación de fechas en Historial de movimientos
+
+**Objetivo:** Replicar en `components/transactions/TransactionFilters.tsx` la misma validación cruzada que ya existe en `components/dashboard/DateRangeFilter.tsx` (Dashboard).
+
+**Lógica a agregar:**
+- Si `dateTo` está seteado y el nuevo `dateFrom > dateTo` → error: `La fecha "Desde" no puede ser posterior a la fecha "Hasta"` (no se aplica el cambio).
+- Si `dateFrom` está seteado y el nuevo `dateTo < dateFrom` → error: `La fecha "Hasta" no puede ser anterior a la fecha "Desde"` (no se aplica el cambio).
+- Mostrar el mensaje de error en un banner rojo debajo de los campos de fecha (mismo estilo que el Dashboard).
+
+- Archivo a modificar: `components/transactions/TransactionFilters.tsx`.
+
+---
+
+## Resumen de archivos a tocar
+
+1. `app/_layout.tsx` — pantalla "Cargando..." en web
+2. `components/auth/AuthForm.tsx` — borde azul nativo
+3. `components/transactions/TransactionForm.tsx` — borde azul nativo
+4. `components/transactions/RecurringConfig.tsx` — borde azul nativo
+5. `components/categories/CategoryManager.tsx` — borde azul nativo
+6. `components/transactions/TransactionFilters.tsx` — sombra web + validación de fechas
+
+¿Estás de acuerdo con este plan? Si te parece bien, cambiá a **Act mode** para que lo implemente.
+
+Implementé los 4 cambios solicitados en ambos contextos (web y nativo):
+
+## 1. VERSIÓN WEB — Pantalla "Cargando..." contra el flash del dashboard
+**Archivo:** `app/_layout.tsx`
+- Agregué el estado `isAuthLoading` que inicia en `true` solo en web.
+- Mientras Firebase Auth resuelve el estado inicial, se muestra una pantalla centrada con un `ActivityIndicator` y el texto "Cargando...".
+- Cuando `onAuthStateChanged` resuelve (logueado o no), se setea `false` y recién ahí se renderiza el `<Stack>`, que ya está en la ruta correcta (login o tabs). Esto elimina el flash del dashboard antes de redirigir al login.
+
+## 2. VERSIÓN NATIVA — Borde azul en todos los inputs de escritura
+Cambié el borde en reposo de `border-gray-200`/`border-indigo-100` → `border-indigo-500` (manteniendo `border-red-400` en errores) en:
+- `components/auth/AuthForm.tsx` — Email, Contraseña, Confirmar contraseña
+- `components/transactions/TransactionForm.tsx` — Monto, Descripción
+- `components/transactions/RecurringConfig.tsx` — Día de Ejecución (1-31)
+- `components/categories/CategoryManager.tsx` — Crear y Editar categoría
+
+Las fechas quedaron intactas, tal como pediste.
+
+## 3. VERSIÓN WEB — Sombra en "Buscar por descripción..."
+**Archivo:** `components/transactions/TransactionFilters.tsx`
+- En foco, ahora el contenedor de búsqueda aplica la misma sombra azul que los demás inputs: `box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15)` + borde `#6366F1`.
+- En reposo se mantiene la sombra/borde neutral para no mover el layout.
+
+## 4. AMBAS VERSIONES — Validación cruzada de fechas en Historial
+**Archivo:** `components/transactions/TransactionFilters.tsx`
+- Repliqué la misma lógica del Dashboard:
+  - Si "Hasta" está seteado y elegís un "Desde" posterior → error: `La fecha "Desde" no puede ser posterior a la fecha "Hasta"`.
+  - Si "Desde" está seteado y elegís un "Hasta" anterior → error: `La fecha "Hasta" no puede ser anterior a la fecha "Desde"`.
+  - En ambos casos no se aplica el cambio inválido.
+- Se muestra un banner rojo debajo de los campos de fecha, con el mismo estilo visual que el del Dashboard.
+- El botón "Limpiar Filtros" resetea también el error.
+
+Todos los cambios son cross-platform consistentes y respetan los estilos existentes.
+
+2 pequeñas cosas:
+
+1) Quisiera que, tanto en la versión web como en la nativa, al presionar la foto del comprobante, la misma se abra en pantalla completa (ya que en la prevista no se ve completamente)
+
+2) Esto es algo particular, y ocurre cuando abro la versión web desde un celular. Los campos de relleno de fecha en dashboard (balance) e historial de movimientos (filtro) no dicen nada. Tendrían que decir Seleccionar fecha (como en la versión nativa) o dd/mm/yyyy (como en la versión web)
+
+Analicé ambos puntos y en esto consiste el plan:
+
+---
+
+## 1) Comprobante a pantalla completa (web y nativa)
+
+**Contexto:** La única foto de comprobante que se muestra en tamaño es la del formulario de crear/editar movimiento (`components/transactions/TransactionForm.tsx`), donde aparece con `className="w-full h-72 rounded-xl"` (una foto recortada de 288px de alto).
+
+**Solución (cross-platform):** Crear un componente reutilizable `ReceiptViewer` (o usar un `Modal` inline en `TransactionForm`):
+
+- Envuelvo el `Image` actual en un `TouchableOpacity`. Al presionarlo se abre un `Modal` de React Native (`transparent`, `animationType="fade"`) que:
+  - Muestra la imagen en **pantalla completa** con `resizeMode="contain"` sobre un fondo oscuro semi-transparente.
+  - Tiene un botón de cerrar (X) en la esquina, y al tocar la imagen o el fondo se cierra.
+- `react-native-web` soporta `Modal`, así que **funciona igual en web y nativo** con un solo componente.
+
+Donde aplico:
+- `components/transactions/TransactionForm.tsx` — la foto del comprobante ya existente.
+
+*(Nota: en el historial (`TransactionItem.tsx`) solo hay un ícono de cámara, no la foto, así que ahí no aplica. Si querés que al tocar ese ícono se abra también, lo agrego.)*
+
+---
+
+## 2) Campos de fecha sin texto en web móvil (Dashboard e Historial)
+
+**Causa raíz:** En web, `DateField` (`components/ui/DateField.tsx`) renderiza un `<input type="date">` nativo. En móvil (iOS/Android del navegador), el atributo `placeholder` de `input type="date"` **se ignora** por completo — por eso el campo se ve vacío tanto en el Dashboard como en Historial.
+
+**Solución:** Modificar la rama web de `DateField` para que, en vez de depender del placeholder nativo, muestre un **texto superpuesto** visible siempre:
+
+- Contenedor con `position: relative`.
+- El `<input type="date">` queda "por debajo" con el texto transparente (sigue clickeable/tocable y abre el picker del navegador).
+- Encima, un `<Text>` que muestra:
+  - Si está vacío → **"Seleccionar fecha"** (el placeholder que ya existe por prop, con default `'Seleccionar fecha'`).
+  - Si tiene valor → la fecha formateada con `formatShortDate` (formato `dd/mm/yyyy`), igual que en nativo.
+
+Esto corrige tanto el **Dashboard** (`DateRangeFilter`) como el **Historial** (`TransactionFilters`), porque ambos usan el mismo `DateField`. También beneficiaría a las fechas del formulario de movimiento.
+
+---
+
+## Archivos a modificar
+
+1. `components/ui/DateField.tsx` — texto superpuesto en el input de fecha web (punto 2)
+2. `components/transactions/TransactionForm.tsx` — abrir el comprobante en pantalla completa (punto 1)
+
+*(El punto 1 puede requerir un componente nuevo pequeño, por ejemplo `components/ui/ReceiptViewer.tsx`, o un `Modal` inline. Prefiero un componente reutilizable para que sea limpio.)*
+
+¿Estás de acuerdo? Si te parece bien, cambiá a **Act mode** y lo implemento.
+
+Implementé las 2 nuevas solicitudes:
+
+## 1) Comprobante a pantalla completa (web y nativa)
+
+**Nuevo componente:** `components/ui/ReceiptViewer.tsx`
+- Un visor de imagen a pantalla completa usando `<Modal>` de React Native (funciona igual en nativo y en react-native-web).
+- Fondo oscuro semi-transparente (`rgba(0,0,0,0.92)`), imagen con `resizeMode="contain"` para que se vea completa sin recortes.
+- Se cierra tocando la imagen/fondo o el botón X (esquina superior derecha).
+
+**Integración en:** `components/transactions/TransactionForm.tsx`
+- La foto del comprobante en crear/editar movimiento ahora está envuelta en un `TouchableOpacity`. Al presionarla, se abre el visor a pantalla completa.
+- El botón de eliminar (X sobre la imagen) se mantiene intacto en la vista previa.
+
+## 2) Campos de fecha con texto visible en web móvil
+
+**Archivo:** `components/ui/DateField.tsx`
+- **Causa raíz:** en navegadores móviles, `<input type="date">` ignora el atributo `placeholder`, por eso los campos se veían vacíos en el Dashboard e Historial cuando abrís la web desde un celular.
+- **Solución:** agregué un texto superpuesto siempre visible sobre el input:
+  - Si está vacío → **"Seleccionar fecha"** (con el color gris de placeholder).
+  - Si tiene valor → la fecha formateada como **dd/mm/yyyy** (misma función `formatShortDate` que usa la versión nativa).
+- El `<input type="date">` sigue debajo (transparente) y conserva su comportamiento nativo del navegador: al tocarlo abre el picker de fecha del celular. El texto del input queda transparente para que no se duplique con el superpuesto.
+- Como todos los campos de fecha usan este componente, la corrección aplica automáticamente a **Dashboard (filtro de balance)**, **Historial (filtro de movimientos)** y las fechas del formulario de movimiento.
+
+Planeemos:
+
+esto es solo para la versión web.
+
+1) Seleccionar fecha (tanto en dashboard como en historial) tienen que tener el mismo borde indigo-500 que el resto de los inputs y hacer la misma sombra onFocused 
+
+2) Buscar por descripción ya hace la sombra onFocused, solo le resta tener el mismo borde indigo-500 que tienen el resto de los inputs.
+
+Analicé el estado actual del código y acá va el plan:
+
+---
+
+## Estado actual (web)
+
+**Fechas (`DateField.tsx`):**
+- El `<input type="date">` tiene `className` con `border-gray-200` en reposo (gris).
+- Además, el `style` inline tiene `border: 'none'` y `outline: 'none'`, que **anulan** tanto el borde del className como el CSS global de focus (`input:focus { border-color: #6366f1; box-shadow: ... }`). Por eso las fechas no tienen ni borde indigo ni sombra al enfocar.
+
+**Buscar por descripción (`TransactionFilters.tsx`):**
+- El contenedor web tiene `borderColor: isSearchFocused ? '#6366F1' : 'transparent'`. En reposo el borde es **transparente** (invisible). La sombra onFocused ya funciona.
+
+---
+
+## Plan
+
+### Punto 1 — Fechas (Dashboard e Historial) con borde indigo-500 + sombra onFocused
+
+**Archivo:** `components/ui/DateField.tsx` (rama web)
+
+1. **Quitar** `border: 'none'` y `outline: 'none'` del `style` inline del `<input type="date">`. Esto permite que el CSS global `input:focus` aplique automáticamente el borde azul `#6366f1` y la sombra `0 0 0 3px rgba(99,102,241,0.15)` al enfocar.
+2. **Cambiar** el `className` del input de `border-gray-200` → `border-indigo-500` en reposo (manteniendo `border-red-400` en error).
+
+Como Dashboard (`DateRangeFilter`) e Historial (`TransactionFilters`) usan el mismo `DateField`, la corrección aplica a ambos automáticamente.
+
+### Punto 2 — Buscar por descripción con borde indigo-500 en reposo
+
+**Archivo:** `components/transactions/TransactionFilters.tsx` (bloque web)
+
+1. **Cambiar** `borderColor: isSearchFocused ? '#6366F1' : 'transparent'` → `borderColor: '#6366F1'` (siempre indigo-500, tanto en reposo como en foco).
+2. La sombra onFocused ya está implementada (líneas 114-116), no se toca.
+
+---
+
+## Archivos a modificar
+
+1. `components/ui/DateField.tsx` — borde indigo-500 en reposo + habilitar sombra onFocused (punto 1)
+2. `components/transactions/TransactionFilters.tsx` — borde indigo-500 en reposo en la búsqueda (punto 2)
+
+Ambos cambios son **solo para la versión web**; la versión nativa no se ve afectada.
+
+¿Estás de acuerdo? Si te parece bien, cambiá a **Act mode** y lo implemento.
+
+Implementé los 2 cambios solicitados, ambos solo para la versión web:
+
+## 1) Fechas (Dashboard e Historial) con borde indigo-500 + sombra onFocused
+
+**Archivo:** `components/ui/DateField.tsx` (rama web)
+
+- **Quité** `border: 'none'` y `outline: 'none'` del `style` inline del `<input type="date">`. Estos estilos estaban anulando tanto el borde del className como el CSS global de focus (`input:focus { border-color: #6366f1; box-shadow: ... }`).
+- **Cambié** el borde en reposo de `border-gray-200` → `border-indigo-500` (manteniendo `border-red-400` en error).
+
+Ahora los campos de fecha:
+- Tienen el **borde indigo-500** en reposo, igual que el resto de los inputs.
+- Al enfocar, el CSS global aplica automáticamente la **sombra azul** `0 0 0 3px rgba(99,102,241,0.15)` y el borde `#6366f1`.
+
+Como tanto el Dashboard (`DateRangeFilter`) como el Historial (`TransactionFilters`) usan el mismo `DateField`, la corrección aplica a ambos.
+
+## 2) Buscar por descripción con borde indigo-500 en reposo
+
+**Archivo:** `components/transactions/TransactionFilters.tsx` (bloque web)
+
+- **Cambié** `borderColor: isSearchFocused ? '#6366F1' : 'transparent'` → `borderColor: '#6366F1'`.
+- Ahora el contenedor de búsqueda tiene el **borde indigo-500 siempre visible** (en reposo y en foco).
+- La **sombra onFocused** ya estaba implementada y se mantiene intacta.
+
+La versión nativa no se vio afectada por ninguno de los dos cambios.

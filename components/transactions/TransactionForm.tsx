@@ -36,6 +36,7 @@ import type {
 import { useFinanceStore, selectAllCategories } from '@/store/useFinanceStore'
 import { Button } from '@/components/ui/Button'
 import { DateField } from '@/components/ui/DateField'
+import { ReceiptViewer } from '@/components/ui/ReceiptViewer'
 import { getCurrentDateISO } from '@/utils/formatters'
 import { RecurringConfig } from './RecurringConfig'
 import { Ionicons } from '@expo/vector-icons'
@@ -156,6 +157,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [receiptUri, setReceiptUri] = useState<string | null>(
     initialData?.receiptUrl ?? null
   )
+  const [isReceiptFullscreen, setIsReceiptFullscreen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Web: <input type="file"> → leer como data URI
@@ -269,7 +271,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             render={({ field: { onChange, value } }) => (
               <TextInput
                 className={`bg-white border rounded-xl px-4 py-3 text-gray-900 text-lg ${
-                  errors.amount ? 'border-red-400' : 'border-gray-200'
+                  errors.amount ? 'border-red-400' : 'border-indigo-500'
                 }`}
                 keyboardType="decimal-pad"
                 placeholder="0.00"
@@ -295,7 +297,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             render={({ field: { onChange, value } }) => (
               <TextInput
                 className={`bg-white border rounded-xl px-4 py-3 text-gray-900 ${
-                  errors.description ? 'border-red-400' : 'border-gray-200'
+                  errors.description ? 'border-red-400' : 'border-indigo-500'
                 }`}
                 placeholder="Ej: Almuerzo en restaurante"
                 placeholderTextColor="#9CA3AF"
@@ -378,11 +380,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           <Text className="text-gray-700 font-medium mb-2">Comprobante</Text>
           {receiptUri ? (
             <View className="relative">
-              <Image
-                source={{ uri: receiptUri }}
-                className="w-full h-72 rounded-xl"
-                resizeMode="cover"
-              />
+              <TouchableOpacity
+                onPress={() => setIsReceiptFullscreen(true)}
+                activeOpacity={0.9}
+              >
+                <Image
+                  source={{ uri: receiptUri }}
+                  className="w-full h-72 rounded-xl"
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleRemoveReceipt}
                 className="absolute top-2 right-2 w-8 h-8 bg-black/50 rounded-full items-center justify-center"
@@ -442,6 +449,15 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         </View>
 
       </View>
+
+      {/* Visor de comprobante a pantalla completa */}
+      {receiptUri && (
+        <ReceiptViewer
+          visible={isReceiptFullscreen}
+          uri={receiptUri}
+          onClose={() => setIsReceiptFullscreen(false)}
+        />
+      )}
     </ScrollView>
   )
 }

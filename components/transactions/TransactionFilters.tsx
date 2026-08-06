@@ -29,6 +29,7 @@ export const TransactionFilters: React.FC<TransactionFiltersProps> = ({
 }) => {
   const isWeb = Platform.OS === 'web'
   const [isSearchFocused, setIsSearchFocused] = useState(false)
+  const [dateError, setDateError] = useState('')
   const allCategories = useFinanceStore(selectAllCategories)
   const categories = useMemo(
     () => allCategories.filter((c) => c.type === (filters.type === 'all' ? 'expense' : filters.type)),
@@ -39,7 +40,26 @@ export const TransactionFilters: React.FC<TransactionFiltersProps> = ({
     onChange({ ...filters, ...partial })
   }
 
+  const handleDateFromChange = (value: string) => {
+    if (filters.dateTo && value > filters.dateTo) {
+      setDateError('La fecha "Desde" no puede ser posterior a la fecha "Hasta"')
+      return
+    }
+    setDateError('')
+    setFilter({ dateFrom: value })
+  }
+
+  const handleDateToChange = (value: string) => {
+    if (filters.dateFrom && value < filters.dateFrom) {
+      setDateError('La fecha "Hasta" no puede ser anterior a la fecha "Desde"')
+      return
+    }
+    setDateError('')
+    setFilter({ dateTo: value })
+  }
+
   const clearFilters = () => {
+    setDateError('')
     onChange({ type: 'all', category: '', dateFrom: '', dateTo: '', searchQuery: '' })
   }
 
@@ -52,8 +72,8 @@ export const TransactionFilters: React.FC<TransactionFiltersProps> = ({
         <View className="flex-1">
           <DateField
             value={filters.dateFrom}
-            onChange={(value) => setFilter({ dateFrom: value })}
-            className="h-11 justify-center px-3 py-2.5 rounded-lg border border-gray-200 bg-white"
+            onChange={handleDateFromChange}
+            className="h-11 justify-center px-3 py-2.5 rounded-lg border border-indigo-500 bg-white"
             textClassName="text-sm text-gray-600"
             placeholder="Seleccionar fecha"
           />
@@ -61,18 +81,25 @@ export const TransactionFilters: React.FC<TransactionFiltersProps> = ({
         <View className="flex-1">
           <DateField
             value={filters.dateTo}
-            onChange={(value) => setFilter({ dateTo: value })}
-            className="h-11 justify-center px-3 py-2.5 rounded-lg border border-gray-200 bg-white"
+            onChange={handleDateToChange}
+            className="h-11 justify-center px-3 py-2.5 rounded-lg border border-indigo-500 bg-white"
             textClassName="text-sm text-gray-600"
             placeholder="Seleccionar fecha"
           />
         </View>
       </View>
 
+      {/* Error de rango de fechas */}
+      {dateError && (
+        <View className="mb-4 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <Text className="text-red-600 text-xs text-center">{dateError}</Text>
+        </View>
+      )}
+
       {/* Búsqueda por descripción */}
       <View
         className={`flex-row items-center rounded-lg px-3 py-2 mb-4 bg-white ${
-          isWeb ? '' : `border ${isSearchFocused ? 'border-indigo-500' : 'border-gray-200'}`
+          isWeb ? '' : `border ${isSearchFocused ? 'border-indigo-500' : 'border-indigo-500'}`
         }`}
         style={
           isWeb
@@ -80,13 +107,13 @@ export const TransactionFilters: React.FC<TransactionFiltersProps> = ({
                 zIndex: 1,
                 boxSizing: 'border-box',
                 // borderWidth fijo en 1px para que el layout NO se mueva al enfocar.
-                // En reposo el borderColor es transparente (invisible), en foco azul.
+                // El borde es siempre indigo-500; en foco se agrega la sombra.
                 borderWidth: 1,
-                borderColor: isSearchFocused ? '#6366F1' : 'transparent',
+                borderColor: '#6366F1',
                 borderStyle: 'solid',
-                boxShadow: 'none',
-                WebkitBoxShadow: 'none',
-                MozBoxShadow: 'none',
+                boxShadow: isSearchFocused ? '0 0 0 3px rgba(99, 102, 241, 0.15)' : 'none',
+                WebkitBoxShadow: isSearchFocused ? '0 0 0 3px rgba(99, 102, 241, 0.15)' : 'none',
+                MozBoxShadow: isSearchFocused ? '0 0 0 3px rgba(99, 102, 241, 0.15)' : 'none',
                 outlineStyle: 'none',
                 outlineWidth: 0,
                 outlineColor: 'transparent',

@@ -50,7 +50,7 @@ export function AuthForm({
           render={({ field: { onChange, onBlur, value } }) => (
             <TextInput
               className={`bg-white border rounded-xl px-4 py-3.5 text-gray-900 text-base ${
-                errors.email ? 'border-red-400' : 'border-gray-200'
+                errors.email ? 'border-red-400' : 'border-indigo-500'
               }`}
               placeholder="tu@email.com"
               placeholderTextColor="#9CA3AF"
@@ -80,7 +80,7 @@ export function AuthForm({
           render={({ field: { onChange, onBlur, value } }) => (
             <TextInput
               className={`bg-white border rounded-xl px-4 py-3.5 text-gray-900 text-base ${
-                errors.password ? 'border-red-400' : 'border-gray-200'
+                errors.password ? 'border-red-400' : 'border-indigo-500'
               }`}
               placeholder="••••••••"
               placeholderTextColor="#9CA3AF"
@@ -110,7 +110,7 @@ export function AuthForm({
             render={({ field: { onChange, onBlur, value } }) => (
               <TextInput
                 className={`bg-white border rounded-xl px-4 py-3.5 text-gray-900 text-base ${
-                  errors.confirmPassword ? 'border-red-400' : 'border-gray-200'
+                  errors.confirmPassword ? 'border-red-400' : 'border-indigo-500'
                 }`}
                 placeholder="••••••••"
                 placeholderTextColor="#9CA3AF"

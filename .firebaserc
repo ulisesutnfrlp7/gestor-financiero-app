@@ -1,15 +1,5 @@
 {
   "projects": {
-    "default": "gestor-financiero-app"
-  },
-  "targets": {
-    "gestor-financiero-app": {
-      "hosting": {
-        "main": [
-          "gestor-financiero-app"
-        ]
-      }
-    }
-  },
-  "etags": {}
+    "default": "gestor-financiero-app-umb"
+  }
 }

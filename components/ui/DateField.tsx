@@ -7,7 +7,7 @@
 // Ambos devuelven la fecha en formato YYYY-MM-DD a través de onChange.
 
 import React from 'react'
-import { Platform, TouchableOpacity, Text } from 'react-native'
+import { Platform, TouchableOpacity, Text, View } from 'react-native'
 import DateTimePicker, {
   DateTimePickerEvent,
 } from '@react-native-community/datetimepicker'
@@ -54,17 +54,50 @@ export const DateField: React.FC<DateFieldProps> = ({
 
   // ─── Web: input nativo del navegador ──────────────────────────────────────
   if (IS_WEB) {
+    // En navegadores móviles, <input type="date"> ignora el atributo placeholder,
+    // dejando el campo vacío. Superponemos un <Text> siempre visible:
+    // "Seleccionar fecha" cuando está vacío, o la fecha formateada (dd/mm/yyyy).
     return (
-      <input
-        type="date"
-        value={value}
-        placeholder={placeholder}
-        min={minimumDate}
-        onChange={(e) => onChange(e.target.value)}
-        className={`w-full bg-white border rounded-xl px-4 py-3 text-gray-900 text-base ${
-          error ? 'border-red-400' : 'border-gray-200'
-        }`}
-      />
+      <View style={{ position: 'relative' }}>
+        <Text
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: 16,
+            top: 0,
+            bottom: 0,
+            justifyContent: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            color: value ? '#111827' : '#9CA3AF',
+            fontSize: 16,
+            zIndex: 1,
+          }}
+        >
+          {value ? formatShortDate(value) : placeholder}
+        </Text>
+        <input
+          type="date"
+          value={value}
+          min={minimumDate}
+          onChange={(e) => onChange(e.target.value)}
+          style={{
+            position: 'relative',
+            zIndex: 2,
+            color: 'transparent',
+            background: 'transparent',
+            WebkitTextFillColor: 'transparent',
+            width: '100%',
+            paddingTop: 12,
+            paddingBottom: 12,
+            appearance: 'none',
+            WebkitAppearance: 'none',
+          }}
+          className={`w-full bg-white border rounded-xl px-4 py-3 text-base ${
+            error ? 'border-red-400' : 'border-indigo-500'
+          }`}
+        />
+      </View>
     )
   }
 

@@ -173,7 +173,7 @@ export const RecurringConfig: React.FC<RecurringConfigProps> = ({
                 maxLength={2}
                 placeholder="Ej: 15"
                 placeholderTextColor="#9CA3AF"
-                className={`bg-white border rounded-xl px-4 py-3 text-gray-900 ${errors.executionDay ? 'border-red-400' : 'border-indigo-100'}`}
+                className={`bg-white border rounded-xl px-4 py-3 text-gray-900 ${errors.executionDay ? 'border-red-400' : 'border-indigo-500'}`}
               />
             </View>
           )}
