@@ -8,6 +8,7 @@
 import {
   doc,
   setDoc,
+  getDoc,
   serverTimestamp,
   collection,
   query,
@@ -19,6 +20,18 @@ import { deleteUser, signOut } from 'firebase/auth'
 import { db, auth } from '@/lib/firebase'
 
 const COLLECTION = 'users'
+
+/**
+ * Verifica si el perfil de usuario ya existe en Firestore.
+ *
+ * @param uid - ID del usuario (el mismo que Firebase Auth)
+ * @returns true si el documento existe, false si no
+ */
+export const checkUserProfileExists = async (uid: string): Promise<boolean> => {
+  const userRef = doc(db, COLLECTION, uid)
+  const snapshot = await getDoc(userRef)
+  return snapshot.exists()
+}
 
 /**
  * Crea un documento de perfil de usuario en Firestore.

@@ -7947,3 +7947,265 @@ Como tanto el Dashboard (`DateRangeFilter`) como el Historial (`TransactionFilte
 - La **sombra onFocused** ya estaba implementada y se mantiene intacta.
 
 La versión nativa no se vio afectada por ninguno de los dos cambios.
+
+# CONVERSACIÓN 06/08/2026
+
+aclaro que, en desarrollo, todo funciona perfecto, el tema es en la versión preview de android (producción).
+
+Encontré la causa raíz. El problema es de **configuración de build**, no de código.
+
+## Diagnóstico definitivo
+
+En `eas.json`, el perfil `preview` **no define las variables de entorno de Cloudinary**:
+
+```json
+"preview": {
+  "distribution": "internal",
+  "android": {
+    "buildType": "apk"
+  },
+  "env": {
+    "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+  }
+}
+```
+
+Solo define `NPM_CONFIG_LEGACY_PEER_DEPS`, pero **no** `EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME` ni `EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET`.
+
+**En desarrollo**: Expo lee el archivo `.env` local, así que las variables están disponibles y todo funciona.
+
+**En la build preview (producción)**: EAS no inyecta las variables del `.env` local a menos que se definan explícitamente en `eas.json` o en el dashboard de EAS. Entonces:
+
+1. `uploadReceipt` lee `process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME` → `undefined`
+2. Lanza el error `'Cloudinary no está configurado. Verificá las variables de entorno.'`
+3. Pero `handleSubmit` en `new.tsx`/`[id].tsx` **no tiene try/catch**, así que el error se pierde silenciosamente
+4. El usuario no ve ningún error, y el comprobante no se guarda
+
+## Plan de solución
+
+### Paso 1: `eas.json` — Agregar variables de entorno de Cloudinary al perfil `preview`
+```json
+"preview": {
+  "distribution": "internal",
+  "android": {
+    "buildType": "apk"
+  },
+  "env": {
+    "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
+    "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "tu_cloud_name",
+    "EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET": "tu_upload_preset"
+  }
+}
+```
+
+### Paso 2: Manejo de errores en las pantallas (defensa en profundidad)
+Agregar try/catch en `handleSubmit` de `new.tsx` y `[id].tsx` para que, si algo falla (incluida la subida a Cloudinary), el usuario vea un mensaje claro en lugar de un fallo silencioso.
+
+### Paso 3: (Opcional) Mejorar `upload.service.ts`
+Agregar un mensaje de error más descriptivo cuando Cloudinary no está configurado, indicando que es un problema de configuración de la build.
+
+¿Querés que implemente este plan? Necesitaría que me confirmes los valores reales de `EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME` y `EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET` (o que los agregues tú mismo en `eas.json`), y que luego hagas una nueva build preview.
+
+EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET=gestor_financiero
+EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME=whv0faje
+
+1) no estaría exponiendo secretos con esto? o no pasa nada?
+
+2) EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET=gestor_financiero
+EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME=whv0faje no los tendría que tener en EAS como variables de entorno?
+
+Excelentes preguntas. Te respondo ambas:
+
+## 1) ¿Estás exponiendo secretos?
+
+**No, no estás exponiendo secretos.** Estas dos variables son **públicas por diseño**:
+
+- **`EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME`** (`whv0faje`): Es el nombre de tu cuenta Cloudinary. Aparece en todas las URLs públicas de tus imágenes (ej: `https://res.cloudinary.com/whv0faje/...`). No es un secreto.
+- **`EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET`** (`gestor_financiero`): Es un **upload preset sin firma (unsigned)**. Esto significa que cualquiera puede subir imágenes a tu cuenta Cloudinary usando ese preset. Es un riesgo **menor** (alguien podría subir imágenes no deseadas a tu cuenta), pero **no** expone datos sensibles ni permite leer/borrar tus imágenes.
+
+> **Nota importante**: El prefijo `EXPO_PUBLIC_` en Expo significa que la variable se **incrusta en el bundle de la app** y es visible para cualquiera que descompile el APK. Por eso solo deberías usar `EXPO_PUBLIC_` para valores que no sean secretos. Si Cloudinary tuviera una API key secreta, **no** deberías usar `EXPO_PUBLIC_` para ella.
+
+**Riesgo real del upload preset unsigned**: Cualquier persona con el preset podría subir imágenes a tu cuenta Cloudinary. Para mitigarlo, podrías:
+- Limitar el preset en el dashboard de Cloudinary (ej: restringir por tipo de archivo, tamaño máximo, o usar un preset firmado con una API secret en un backend).
+- Pero para una app personal, el riesgo es bajo.
+
+## 2) ¿Dónde deberían estar las variables?
+
+**Sí, deberías tenerlas en EAS.** Hay dos opciones:
+
+### Opción A: En `eas.json` (recomendada para este caso)
+Agregarlas al perfil `preview` en `eas.json`. Esto las inyecta en el build. **Ventaja**: quedan versionadas en el repo (son públicas, no hay problema). **Desventaja**: si cambian, hay que hacer un nuevo build.
+
+### Opción B: En el dashboard de EAS (Environment Variables)
+Ir a [EAS Dashboard](https://expo.dev/accounts/.../settings/environment-variables) y agregarlas como variables de entorno del proyecto. **Ventaja**: no quedan en el repo y se pueden cambiar sin tocar código. **Desventaja**: hay que configurarlas manualmente en el dashboard.
+
+**Mi recomendación**: Como son variables públicas, la **Opción A** (en `eas.json`) es más simple y queda documentada en el repo. Pero si preferís no tenerlas en el código, usá la **Opción B**.
+
+---
+
+## Plan actualizado
+
+### Paso 1: `eas.json` — Agregar las variables al perfil `preview`
+```json
+"preview": {
+  "distribution": "internal",
+  "android": {
+    "buildType": "apk"
+  },
+  "env": {
+    "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
+    "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "whv0faje",
+    "EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET": "gestor_financiero"
+  }
+}
+```
+
+### Paso 2: Manejo de errores en las pantallas
+Agregar try/catch en `handleSubmit` de `new.tsx` y `[id].tsx` para que el usuario vea un mensaje claro si falla la subida.
+
+### Paso 3: (Opcional) Mejorar mensaje de error en `upload.service.ts`
+
+¿Querés que implemente este plan? ¿Preferís la Opción A (eas.json) o la Opción B (dashboard de EAS)?
+
+Opción A.
+
+He implementado la solución completa para el problema de guardado de comprobantes en la versión nativa (preview Android). El problema era que la build preview de EAS no incluía las variables de entorno de Cloudinary, lo que hacía que `uploadReceipt` lanzara un error silencioso que no se mostraba al usuario.
+
+## Cambios realizados
+
+### 1. `eas.json` — Variables de Cloudinary en el perfil `preview`
+Agregué `EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME=whv0faje` y `EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET=gestor_financiero` al perfil `preview`. Esto hace que la build preview tenga acceso a las variables (son públicas por diseño, no son secretos).
+
+### 2. `app/transaction/new.tsx` — Manejo de errores
+Agregué try/catch en `handleSubmit` para que si falla `createTransaction` (incluida la subida a Cloudinary), el usuario vea un mensaje de error claro con `showMessage('Error', msg)` en lugar de un fallo silencioso.
+
+### 3. `app/transaction/[id].tsx` — Manejo de errores
+Agregué try/catch en `handleSubmit` para el flujo de edición, mostrando el error con `showMessage('Error', msg)`.
+
+### 4. `app/recurring/[id].tsx` — Manejo de errores
+Agregué try/catch en `handleSubmit` para el flujo de edición de plantillas recurrentes, mostrando el error con `Alert.alert('Error', msg)`.
+
+### 5. `services/upload.service.ts` — Mensaje de error más descriptivo
+Actualicé el mensaje de error cuando Cloudinary no está configurado para indicar que es un problema de configuración de la build y mencionar las variables específicas que faltan.
+
+### 6. `__tests__/unit/services/upload.service.test.ts` — Test actualizado
+Actualicé la assertion del primer test para que coincida con el nuevo mensaje de error ('Cloudinary no está configurado en esta build').
+
+## Siguiente paso
+Necesitás hacer una **nueva build preview** para que las variables de entorno se incluyan:
+```bash
+eas build --profile preview --platform android
+```
+
+Después de instalar la nueva APK, al guardar un comprobante debería subirse correctamente a Cloudinary. Y si algo vuelve a fallar, ya verás un mensaje de error descriptivo en lugar de un fallo silencioso.
+
+ahora vamos con otra cosa: borré mi cuenta de la aplicación. al volver a registrarme con google, la cuenta vuelve a aparecer en Auth pero, en users (documento de firestore), me aparece Este documento no existe, por lo que no aparecerá en las consultas ni en las instantáneas.Más información. es decir, nace un documento "roto". esto ocurre solo con el sign in sign up de google. creando cuentas mediante correo todo funciona normal.
+
+He identificado la causa raíz del documento "roto" al re-registrarse con Google.
+
+## Diagnóstico
+
+### El flujo de eliminación de cuenta
+`deleteUserAccount` en `users.service.ts` elimina correctamente:
+1. Transacciones
+2. Plantillas recurrentes
+3. Categorías
+4. **Documento `users/{userId}`** ← se elimina
+5. Cuenta de Firebase Auth (`deleteUser`)
+6. Cierra sesión
+
+### El problema al re-registrarse con Google
+
+Cuando el usuario borra su cuenta y luego vuelve a iniciar sesión con Google:
+
+1. **Firebase Auth recrea el mismo UID** (porque es el mismo email de Google)
+2. El usuario está en la pantalla de **login** (`login.tsx`), que usa `<GoogleSignInButton mode="login" />`
+3. En `GoogleSignInButton.tsx`, `handlePostAuth` solo llama `createUserProfile(uid, email)` si `mode === 'register'`:
+
+```ts
+async function handlePostAuth(uid: string, email: string, mode: 'login' | 'register') {
+  if (mode === 'register') {
+    await createUserProfile(uid, email)  // ← NO se llama en login
+  }
+}
+```
+
+4. Como `mode="login"`, **no se crea el perfil en Firestore**
+5. Resultado: el usuario existe en Auth pero el documento `users/{uid}` no existe en Firestore → documento "roto"
+
+### ¿Por qué con email/contraseña funciona?
+
+Con email/contraseña, el registro siempre pasa por `register.tsx` que llama `createUserProfile`. Y si el email ya existe, `createUserWithEmailAndPassword` lanza `auth/email-already-in-use`, impidiendo el re-registro sin pasar por el flujo de registro.
+
+## Plan de solución
+
+### Paso 1: `GoogleSignInButton.tsx` — Verificar y crear perfil en ambos modos
+Modificar `handlePostAuth` para que **siempre** verifique si el perfil existe y lo cree si no existe, independientemente del `mode`:
+
+```ts
+async function handlePostAuth(uid: string, email: string) {
+  // Verificar si el perfil ya existe en Firestore
+  const profileExists = await checkUserProfileExists(uid)
+  if (!profileExists) {
+    await createUserProfile(uid, email)
+  }
+}
+```
+
+### Paso 2: `services/users.service.ts` — Agregar `checkUserProfileExists`
+Agregar una función que verifique si el documento `users/{uid}` existe:
+
+```ts
+export const checkUserProfileExists = async (uid: string): Promise<boolean> => {
+  const userRef = doc(db, COLLECTION, uid)
+  const snapshot = await getDoc(userRef)
+  return snapshot.exists()
+}
+```
+
+### Paso 3: (Opcional pero recomendado) `app/_layout.tsx` — Defensa en profundidad
+En el `onAuthStateChanged`, después de `setUserId(user.uid)`, verificar si el perfil existe y crearlo si no. Esto cubre todos los casos de autenticación (Google, email, re-registro) de forma centralizada.
+
+### Paso 4: Tests
+Actualizar/agregar tests para `checkUserProfileExists` y el nuevo flujo de `handlePostAuth`.
+
+¿Estás de acuerdo con este plan? ¿Querés que lo implemente?
+
+He implementado la solución para el problema del documento "roto" al re-registrarse con Google.
+
+## Diagnóstico
+
+El problema era que al **borrar la cuenta**, se elimina tanto el documento `users/{uid}` de Firestore como la cuenta de Firebase Auth. Pero al **re-registrarse con Google**, Firebase Auth recrea el **mismo UID** (porque es el mismo email de Google). El flujo de login con Google usaba `<GoogleSignInButton mode="login" />`, y en modo `login` **no se creaba el perfil en Firestore** — solo se creaba en modo `register`. Resultado: el usuario existía en Auth pero el documento `users/{uid}` no existía en Firestore → documento "roto".
+
+Con email/contraseña esto no ocurría porque el re-registro siempre pasa por `register.tsx` que llama `createUserProfile`.
+
+## Cambios realizados
+
+### 1. `services/users.service.ts` — Nueva función `checkUserProfileExists`
+Agregué la función que verifica si el documento `users/{uid}` existe en Firestore usando `getDoc`.
+
+### 2. `components/auth/GoogleSignInButton.tsx` — Verificar y crear perfil en ambos modos
+Modifiqué `handlePostAuth` para que **siempre** verifique si el perfil existe y lo cree si no existe, independientemente del `mode` (`login` o `register`):
+
+```ts
+async function handlePostAuth(uid: string, email: string) {
+  const profileExists = await checkUserProfileExists(uid)
+  if (!profileExists) {
+    await createUserProfile(uid, email)
+  }
+}
+```
+
+### 3. `app/_layout.tsx` — Defensa en profundidad
+En el `onAuthStateChanged`, después de `setUserId(user.uid)`, ahora se verifica si el perfil existe y se crea si falta. Esto cubre **todos** los casos de autenticación (Google, email, re-registro) de forma centralizada.
+
+### 4. `__tests__/unit/services/users.service.test.ts` — Nuevos tests
+Creé tests para:
+- `checkUserProfileExists` → devuelve `true` cuando el documento existe, `false` cuando no
+- `createUserProfile` → crea el perfil con email y timestamps
+
+## Nota
+Los tests no se ejecutaron porque denegaste el comando. Podés ejecutarlos cuando quieras con:
+```bash
+npm test
+```

@@ -17,6 +17,7 @@ import { onAuthStateChanged } from 'firebase/auth'
 import { useRouter } from 'expo-router'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { auth } from '@/lib/firebase'
+import { checkUserProfileExists, createUserProfile } from '@/services/users.service'
 import { useFinanceStore } from '@/store/useFinanceStore'
 import { useTransactions } from '@/hooks/useTransactions'
 import { useCategories } from '@/hooks/useCategories'
@@ -100,6 +101,15 @@ export default function RootLayout() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setUserId(user.uid)
+
+        // Defensa en profundidad: si el perfil no existe (ej: re-registro
+        // tras eliminar la cuenta con Google, que recrea el mismo UID),
+        // recrear el documento de perfil en Firestore.
+        const profileExists = await checkUserProfileExists(user.uid)
+        if (!profileExists) {
+          await createUserProfile(user.uid, user.email ?? '')
+        }
+
         // Precargar categorías default si es la primera vez
         await seedDefaultCategories(user.uid)
         router.replace('/(tabs)')

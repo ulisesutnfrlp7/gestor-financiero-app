@@ -14,31 +14,39 @@ import {
   GoogleAuthProvider,
 } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
-import { createUserProfile } from '@/services/users.service'
+import { checkUserProfileExists, createUserProfile } from '@/services/users.service'
 import { isOnline } from '@/utils/network'
 
 const IS_WEB = Platform.OS === 'web'
 
 interface GoogleSignInButtonProps {
-  /** 'login' solo autentica; 'register' además crea el perfil en Firestore */
+  /**
+   * 'login' solo autentica; 'register' además crea el perfil en Firestore.
+   * En ambos modos se verifica que el perfil exista y se crea si falta
+   * (cubre el caso de re-registro tras eliminar la cuenta).
+   */
   mode: 'login' | 'register'
 }
 
-async function handlePostAuth(uid: string, email: string, mode: 'login' | 'register') {
-  if (mode === 'register') {
+async function handlePostAuth(uid: string, email: string) {
+  // Verificar si el perfil ya existe (ej: re-registro tras eliminar la cuenta).
+  // Firebase Auth recrea el mismo UID para el mismo email de Google, pero
+  // el documento de Firestore fue eliminado → es necesario recrearlo.
+  const profileExists = await checkUserProfileExists(uid)
+  if (!profileExists) {
     await createUserProfile(uid, email)
   }
   // La redirección la maneja onAuthStateChanged en _layout.tsx
 }
 
-export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({ mode }) => {
+export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = () => {
   const [isLoading, setIsLoading] = useState(false)
 
   const handleWebSignIn = async () => {
     const provider = new GoogleAuthProvider()
     const userCredential = await signInWithPopup(auth, provider)
     const user = userCredential.user
-    await handlePostAuth(user.uid, user.email ?? '', mode)
+    await handlePostAuth(user.uid, user.email ?? '')
   }
 
   const handleNativeSignIn = async () => {
@@ -75,7 +83,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({ mode }) 
 
     const credential = GoogleAuthProvider.credential(idToken)
     const userCredential = await signInWithCredential(auth, credential)
-    await handlePostAuth(userCredential.user.uid, userCredential.user.email ?? '', mode)
+    await handlePostAuth(userCredential.user.uid, userCredential.user.email ?? '')
   }
 
   const handleGoogleSignIn = async () => {

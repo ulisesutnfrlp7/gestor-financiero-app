@@ -1,6 +1,7 @@
 node_modules/
 .expo/
 android/
+.firebase/
 dist/
 npm-debug.*
 *.jks
